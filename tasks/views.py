@@ -5,6 +5,9 @@ from django.http import HttpResponse
 from django.contrib.auth import login, logout, authenticate
 from django.db import IntegrityError
 from django.contrib.auth.decorators import login_required
+from rest_framework import viewsets
+from .serializers import TaskSerializer
+from .models import Task
 # Create your views here.
 
 def home(request):
@@ -59,3 +62,7 @@ def signin(request):
         else:
             login(request,user)
             return redirect('tasks')
+
+class TaskView(viewsets.ModelViewSet): 
+    serializer_class = TaskSerializer
+    Task.objects.all()

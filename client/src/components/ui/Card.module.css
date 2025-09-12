@@ -1,0 +1,16 @@
+.card {
+  background: linear-gradient(180deg, var(--panel), var(--panel-2));
+  border: 1px solid rgba(255,255,255,.06);
+  border-radius: var(--radius);
+  box-shadow: var(--shadow);
+  padding: 28px;
+}
+
+.title {
+  font-size: 22px;
+  font-weight: 700;
+  letter-spacing: .3px;
+  margin-bottom: 14px;
+}
+
+.sub { color: var(--muted); font-size: 14px; margin-bottom: 18px; }
