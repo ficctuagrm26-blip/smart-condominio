@@ -19,11 +19,18 @@ export default function Signin() {
     e.preventDefault();
     setError("");
     try {
+      // 1. Login → obtener tokens
       const { data } = await api.post("/api/auth/token/", form);
       localStorage.setItem("access", data.access);
       localStorage.setItem("refresh", data.refresh);
-      navigate("/me");
-    } catch {
+
+      // 2. Obtener perfil del usuario (incluye role)
+      const meRes = await api.get("/api/me/");
+      localStorage.setItem("me", JSON.stringify(meRes.data));
+
+      // 3. Redirigir al dashboard
+      navigate("/dashboard");
+      } catch {
       setError("Usuario o contraseña incorrectos");
     }
   };
@@ -31,13 +38,13 @@ export default function Signin() {
   return (
     <div className="center">
       <div className={styles.wrap}>
-        <Card title="Bienvenido" subtitle="Ingresa con tus credenciales">
+        <Card title="Inicia Sesión" subtitle="Bienvenido a Smart Condominiun">
           {error && <div className={styles.error}>{error}</div>}
           <form onSubmit={onSubmit}>
             <Input
               label="Usuario"
               name="username"
-              placeholder="tu.usuario"
+              placeholder="Username"
               value={form.username}
               onChange={onChange}
               required
@@ -46,7 +53,7 @@ export default function Signin() {
               label="Contraseña"
               type="password"
               name="password"
-              placeholder="••••••••"
+              placeholder="Password"
               value={form.password}
               onChange={onChange}
               required

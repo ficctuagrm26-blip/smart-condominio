@@ -3,7 +3,7 @@ from rest_framework.decorators import api_view, permission_classes
 from rest_framework.permissions import IsAuthenticated
 from rest_framework.response import Response
 
-from .serializers import RegisterSerializer
+from .serializers import RegisterSerializer, MeSerializer
 
 # 👤 Registrar usuario (signup API)
 class RegisterView(generics.CreateAPIView):
@@ -15,9 +15,4 @@ class RegisterView(generics.CreateAPIView):
 @api_view(["GET"])
 @permission_classes([IsAuthenticated])
 def me(request):
-    user = request.user
-    return Response({
-        "id": user.id,
-        "username": user.username,
-        "email": user.email,
-    })
+    return Response(MeSerializer(request.user).data)
