@@ -1,3 +1,23 @@
+# Python / Django
+__pycache__/
+*.py[cod]
+*.egg-info/
 db.sqlite3
-venv
-__pycache__
+venv/
+.env
+.env.*
+
+# Static generados
+staticfiles/
+media/
+
+# Node / Vite / React
+node_modules/
+dist/
+.next/
+out/
+
+# OS/IDE
+.DS_Store
+.vscode/
+*.log
