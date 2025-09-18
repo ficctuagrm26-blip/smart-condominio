@@ -16,7 +16,6 @@ Including another URLconf
 """
 from django.contrib import admin
 from django.urls import path, include
-from rest_framework_simplejwt.views import TokenObtainPairView, TokenRefreshView
 from smartcondominio import views
 from smartcondominio.views_api import me
 
@@ -28,9 +27,6 @@ urlpatterns = [
     path('logout/',views.signout, name='logout'),
     path('signin/',views.signin, name='signin'),
 
-    # 🔑 Endpoints para login con JWT
-    path('api/auth/token/', TokenObtainPairView.as_view(), name='token_obtain_pair'),
-    path('api/auth/token/refresh/', TokenRefreshView.as_view(), name='token_refresh'),
     
     #endpoint protegido
     path("api/", include("smartcondominio.urls")),
