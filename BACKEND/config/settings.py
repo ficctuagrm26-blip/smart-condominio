@@ -25,12 +25,9 @@ BASE_DIR = Path(__file__).resolve().parent.parent
 SECRET_KEY = os.environ.get("SECRET_KEY", "dev-secret")
 
 # SECURITY WARNING: don't run with debug turned on in production!
-DEBUG =  os.environ.get("DEBUG", "False") == "True"
+DEBUG = os.getenv("DEBUG", "False").lower() == "true"
 
-ALLOWED_HOSTS = os.getenv(
-    "ALLOWED_HOSTS",
-    "smart-condominium-1.onrender.com"
-).split(",")
+ALLOWED_HOSTS = ["127.0.0.1", "localhost","smart-condominium-1.onrender.com"] 
 
 # Application definition
 
@@ -144,10 +141,11 @@ CORS_ALLOWED_ORIGINS = [
     "https://smart-condominium-2.onrender.com",
 ] 
 
-CSRF_TRUSTED_ORIGINS = os.getenv(
-    "CSRF_TRUSTED_ORIGINS",
-    "https://smart-condominium-1.onrender.com"
-).split(",")
+CSRF_TRUSTED_ORIGINS = [
+    "http://127.0.0.1:8000",
+    "http://localhost:8000",
+    "https://smart-condominium-1.onrender.com",
+]
 
 
 REST_FRAMEWORK = {
