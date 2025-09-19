@@ -1,0 +1,144 @@
+/* ===== Signin.css (scope: .signin …) ===== */
+
+:root {
+  --bg: #0b0d12;
+  --card: #11151c;
+  --text: #e5e7eb;
+  --muted: #94a3b8;
+  --error: #f87171;
+  --primary: #4f46e5;
+  --primary-press: #4338ca;
+  --ring: #6366f1;
+  --border: #202633;
+}
+
+.signin {
+  min-height: 100dvh; /* móvil-friendly */
+  display: grid;
+  place-items: center;
+  background:
+    radial-gradient(1200px 600px at 20% -10%, rgba(79,70,229,0.25), transparent 60%),
+    radial-gradient(1000px 700px at 110% 20%, rgba(14,165,233,0.18), transparent 60%),
+    var(--bg);
+  color: var(--text);
+  padding: 16px;
+  font-family: ui-sans-serif, system-ui, -apple-system, Segoe UI, Roboto, "Helvetica Neue", Arial, "Noto Sans", "Liberation Sans", "Apple Color Emoji", "Segoe UI Emoji", "Segoe UI Symbol";
+}
+
+.signin__card {
+  width: min(420px, 100%);
+  background: color-mix(in srgb, var(--card) 88%, black 12%);
+  border: 1px solid var(--border);
+  border-radius: 16px;
+  padding: 22px 20px;
+  box-shadow: 0 10px 30px rgba(0,0,0,.35);
+  backdrop-filter: blur(6px);
+}
+
+.signin__title {
+  margin: 0 0 4px 0;
+  font-size: 22px;
+  font-weight: 700;
+  letter-spacing: .2px;
+}
+
+.signin__subtitle {
+  margin: 0 0 18px 0;
+  font-size: 13px;
+  color: var(--muted);
+}
+
+.signin__error {
+  margin: 8px 0 14px;
+  padding: 10px 12px;
+  border-radius: 10px;
+  background: rgba(248,113,113,0.12);
+  border: 1px solid rgba(248,113,113,0.35);
+  color: var(--error);
+  font-size: 13px;
+}
+
+.signin__group {
+  display: grid;
+  gap: 6px;
+  margin-top: 12px;
+}
+
+.signin__label {
+  font-size: 13px;
+  color: var(--muted);
+}
+
+.signin__input {
+  width: 25rem; 
+  font-size: 15px;
+  line-height: 1;
+  padding: 12px 12px;
+  border-radius: 10px;
+  border: 1px solid var(--border);
+  outline: none;
+  background: #0f141b;
+  color: var(--text);
+  transition: border-color .15s ease, box-shadow .15s ease, background .15s ease;
+}
+
+.signin__input::placeholder { color: #6b7280; }
+
+.signin__input:focus-visible {
+  border-color: var(--ring);
+  box-shadow: 0 0 0 3px color-mix(in srgb, var(--ring) 25%, transparent);
+  background: #0d1218;
+}
+
+.signin__actions {
+  margin-top: 18px;
+}
+
+.signin__button {
+  width: 100%;
+  padding: 12px 14px;
+  border-radius: 105px;
+  border: none;
+  font-weight: 600;
+  letter-spacing: .2px;
+  background: var(--primary);
+  color: white;
+  cursor: pointer;
+  transition: transform .04s ease, filter .15s ease, background .15s ease;
+}
+
+.signin__button:hover { filter: brightness(1.05); }
+.signin__button:active { transform: translateY(1px); background: var(--primary-press); }
+.signin__button:disabled { opacity: .6; cursor: not-allowed; transform: none; }
+
+.signin__muted {
+  margin-top: 12px;
+  font-size: 12px;
+  color: var(--muted);
+  text-align: center;
+}
+
+.signin__muted a {
+  color: var(--text);
+  text-decoration: underline;
+  text-underline-offset: 3px;
+}
+
+/* Pequeño loader dentro del botón (cuando haya estado .is-loading) */
+.signin__button.is-loading {
+  position: relative;
+  pointer-events: none;
+}
+.signin__button.is-loading::after {
+  content: "";
+  position: absolute;
+  inset-inline-end: 12px;
+  top: 50%;
+  width: 16px; height: 16px;
+  margin-top: -8px;
+  border-radius: 50%;
+  border: 2px solid rgba(255,255,255,0.6);
+  border-top-color: transparent;
+  animation: signin-spin .7s linear infinite;
+}
+@keyframes signin-spin { to { transform: rotate(360deg); } }

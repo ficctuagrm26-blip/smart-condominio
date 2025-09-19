@@ -25,7 +25,7 @@ BASE_DIR = Path(__file__).resolve().parent.parent
 SECRET_KEY = os.environ.get("SECRET_KEY", "dev-secret")
 
 # SECURITY WARNING: don't run with debug turned on in production!
-DEBUG = os.getenv("DEBUG", "False").lower() == "true"
+DEBUG = True #os.getenv("DEBUG", "False").lower() == "true"
 
 ALLOWED_HOSTS = ["127.0.0.1", "localhost","smart-condominium-1.onrender.com"] 
 
@@ -42,6 +42,7 @@ INSTALLED_APPS = [
     "rest_framework",
     "rest_framework.authtoken",
     "smartcondominio.apps.SmartCondominioConfig",
+   
 ]
 
 MIDDLEWARE = [

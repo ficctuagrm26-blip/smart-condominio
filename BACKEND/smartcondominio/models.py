@@ -27,8 +27,8 @@ class Profile(models.Model):
     def __str__(self):
         return f"{self.user.username} ({self.role})"
     
-# USUARIOS AUTOMATICAMENTE
+
+
 @receiver(post_save, sender=User)
 def ensure_profile(sender, instance, created, **kwargs):
-    if created:
-        Profile.objects.get_or_create(user=instance, defaults={"role": "RESIDENT"})
+    Profile.objects.get_or_create(user=instance)  # 👈 idempotente

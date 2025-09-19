@@ -1,0 +1,44 @@
+:root { color-scheme: dark; }
+html, body, #root { height: 100%; margin: 0; }
+
+
+.center { min-height: 100%; display: grid; place-items: center; }
+.card { width: 320px; background: #111; padding: 20px; border-radius: 14px; box-shadow: 0 10px 30px rgba(0,0,0,.35); }
+.card h2 { margin-top: 0; }
+.card label { display:block; margin-top: 10px; font-size: 14px; color: #ccc; }
+.card input { width: 100%; padding: 10px; margin-top: 6px; border-radius: 8px; border: 1px solid #333; background: #1a1a1a; color: #eee; }
+.card button { margin-top: 16px; width: 100%; padding: 10px; border-radius: 8px; border: none; background: #4f46e5; color:#fff; font-weight: 600; cursor:pointer; }
+.card button:hover { filter: brightness(1.05); }
+.error { color: #ef4444; font-size: 14px; }
+.muted { color: #aaa; font-size: 12px; margin-top: 10px; }
+
+
+.layout { display: grid; grid-template-columns: 240px 1fr; min-height: 100%; background: #0b0d12; color: #e5e7eb; }
+.sidebar { padding: 20px; border-right: 1px solid #1f2937; display:flex; flex-direction: column; gap: 8px; }
+.sidebar a { color: #cbd5e1; text-decoration: none; margin: 4px 0; }
+.sidebar a:hover { color: #fff; }
+.spacer { flex: 1; }
+.userbox { display:flex; flex-direction: column; gap: 8px; }
+.content { padding: 24px; }
+
+/* enlaces base */
+.nav__link, .nav__sublink {
+  display:block; padding:8px 10px; margin:2px 0;
+  color:#cbd5e1; text-decoration:none; border-radius:8px;
+}
+.nav__link:hover, .nav__sublink:hover { color:#fff; background:#111827; }
+.active { color:#fff; background:#1f2937; }
+
+/* grupo colapsable */
+.nav-group { margin-top: 10px; }
+.nav-group__header {
+  width:100%; display:flex; align-items:center; justify-content:space-between;
+  padding:8px 10px; border:none; background:transparent; color:#cbd5e1; cursor:pointer; border-radius:8px;
+}
+.nav-group__header:hover { color:#fff; background:#111827; }
+.chev { transition: transform .15s ease; }
+.chev.open { transform: rotate(90deg); }
+
+.nav-group__items { display:none; padding-left:8px; margin-top:4px; }
+.nav-group__items.open { display:block; }
+.nav__sublink { padding-left:14px; }

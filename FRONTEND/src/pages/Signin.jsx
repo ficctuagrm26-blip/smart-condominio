@@ -1,69 +1,90 @@
 import { useState } from "react";
-import api from "../api";
-import { useNavigate, Link } from "react-router-dom";
-import Card from "../components/ui/Card";
-import Input from "../components/ui/Input";
-import Button from "../components/ui/Button";
-import styles from "./Signin.module.css";
-
-
+import { useNavigate, useLocation } from "react-router-dom";
+import { login, me, getRole } from "../api/auth";
+import "./Signin.css";
 
 export default function Signin() {
-  const [form, setForm] = useState({ username: "", password: "" });
+  const [username, setUsername] = useState("");
+  const [password, setPassword] = useState("");
   const [error, setError] = useState("");
+  const [loading, setLoading] = useState(false);
   const navigate = useNavigate();
+  const location = useLocation();
+  const from = location.state?.from?.pathname || "/dashboard";
 
-  const onChange = (e) => setForm({ ...form, [e.target.name]: e.target.value });
-
-  const onSubmit = async (e) => {
+  const handleSubmit = async (e) => {
     e.preventDefault();
+    if (loading) return;
+    setLoading(true);
     setError("");
+
     try {
-      // 1. Login → obtener tokens
-      const { data } = await api.post("/api/auth/token/", form);
-      localStorage.setItem("access", data.access);
-      localStorage.setItem("refresh", data.refresh);
-
-      // 2. Obtener perfil del usuario (incluye role)
-      const meRes = await api.get("/api/me/");
-      localStorage.setItem("me", JSON.stringify(meRes.data));
-
-      // 3. Redirigir al dashboard
-      navigate("/dashboard");
-      } catch {
-      setError("Usuario o contraseña incorrectos");
+      await login(username.trim(), password);      // 1) POST -> guarda token
+      const profile = await me();                  // 2) GET perfil con token
+      localStorage.setItem("me", JSON.stringify(profile));
+      navigate(from || "/dashboard", { replace: true });
+    } catch (err) {
+      const msg =
+        err?.response?.data?.detail ||
+        err?.response?.data?.non_field_errors?.[0] ||
+        err?.message ||
+        "Usuario o contraseña incorrectos";
+      setError(msg);
+    } finally {
+      setLoading(false);
     }
   };
 
   return (
-    <div className="center">
-      <div className={styles.wrap}>
-        <Card title="Inicia Sesión" subtitle="Bienvenido a Smart Condominiun">
-          {error && <div className={styles.error}>{error}</div>}
-          <form onSubmit={onSubmit}>
-            <Input
-              label="Usuario"
-              name="username"
-              placeholder="Username"
-              value={form.username}
-              onChange={onChange}
-              required
-            />
-            <Input
-              label="Contraseña"
-              type="password"
-              name="password"
-              placeholder="Password"
-              value={form.password}
-              onChange={onChange}
-              required
-            />
-            <div className={styles.actions}>
-              <Button type="submit">Iniciar sesión</Button>
-            </div>
-          </form>
-        </Card>
-      </div>
+    <div className="signin">
+      <form className="signin__card" onSubmit={handleSubmit} noValidate>
+        <h2 className="signin__title">Iniciar Sesión</h2>
+        <p className="signin__subtitle">Bienvenido a un Condominio Inteligente</p>
+
+        {error && <div className="signin__error">{error}</div>}
+
+        <div className="signin__group">
+          <label htmlFor="user" className="signin__label">Usuario</label>
+          <input
+            id="user"
+            className="signin__input"
+            value={username}
+            onChange={(e) => setUsername(e.target.value)}
+            autoComplete="username"
+            autoFocus
+            required
+            placeholder="Tu usuario"
+          />
+        </div>
+
+        <div className="signin__group">
+          <label htmlFor="pass" className="signin__label">Contraseña</label>
+          <input
+            id="pass"
+            type="password"
+            className="signin__input"
+            value={password}
+            onChange={(e) => setPassword(e.target.value)}
+            autoComplete="current-password"
+            required
+            placeholder="••••••••"
+          />
+        </div>
+
+        <div className="signin__actions">
+          <button
+            type="submit"
+            className={`signin__button${loading ? " is-loading" : ""}`}
+            disabled={loading}
+          >
+            {loading ? "Ingresando..." : "Ingresar"}
+          </button>
+        </div>
+
+        <p className="signin__muted">
+          ¿Olvidaste tu contraseña? <a href="#">Contacta al admin</a>
+        </p>
+      </form>
     </div>
   );
 }

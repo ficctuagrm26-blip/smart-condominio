@@ -1,10 +1,14 @@
-import { Navigate } from "react-router-dom";
+import { Navigate, useLocation } from "react-router-dom";
+import { getRole } from "../api/auth"; //Solo ingreso con rol
 
-export default function RequireRole({ children, allow = [] }) {
-  const token = localStorage.getItem("access");
-  const meRaw = localStorage.getItem("me");
-  if (!token || !meRaw) return <Navigate to="/signin" />;
-  const me = JSON.parse(meRaw);
-  if (allow.length === 0 || allow.includes(me.role)) return children;
-  return <Navigate to="/dashboard" />;
+//muestra todos los roles
+export default function RequireRole({ allow = [], children }) {
+const location = useLocation();
+const me = JSON.parse(localStorage.getItem("me") || "null");
+const role = getRole(me);
+
+if (!role || (allow.length && !allow.includes(role))) {
+return <Navigate to="/dashboard" replace state={{ from: location }} />;
+}
+return children;
 }

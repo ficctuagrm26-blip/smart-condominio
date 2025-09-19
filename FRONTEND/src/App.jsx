@@ -1,52 +1,41 @@
-// src/App.jsx
 import { BrowserRouter, Routes, Route, Navigate } from "react-router-dom";
 import Signin from "./pages/Signin";
 import Dashboard from "./pages/Dashboard";
 import Me from "./pages/Me";
+import Layout from "./components/Layout";
 import RequireAuth from "./components/RequireAuth";
 import RequireRole from "./components/RequireRole";
-import Layout from "./components/Layout";
+import AdminUsers from "./pages/AdminUsers"; // asegúrate de tener este componente
 
 export default function App() {
   return (
     <BrowserRouter>
       <Routes>
-        {/* pública */}
+        {/* Pública */}
         <Route path="/signin" element={<Signin />} />
 
-        {/* protegida: todo lo que esté dentro tendrá el sidebar */}
-        <Route element={<RequireAuth><Layout /></RequireAuth>}>
-          {/* index del layout -> redirige al dashboard */}
-          <Route index element={<Navigate to="/dashboard" />} />
+        {/* Zona autenticada */}
+        <Route path="/" element={<RequireAuth><Layout /></RequireAuth>}>
+          <Route index element={<Navigate to="dashboard" replace />} />
+          <Route path="dashboard" element={<Dashboard />} />
+          <Route path="me" element={<Me />} />
 
-          <Route path="/dashboard" element={<Dashboard />} />
-          <Route path="/me" element={<Me />} />
-
+          {/* Solo ADMIN */}
           <Route
-            path="/users"
+            path="admin/usuarios"
             element={
               <RequireRole allow={["ADMIN"]}>
-                <div className="container"><h1>Gestión de Usuarios (ADMIN)</h1></div>
+                <AdminUsers />
               </RequireRole>
             }
           />
 
-          <Route
-            path="/tickets"
-            element={
-              <RequireRole allow={["ADMIN","STAFF","RESIDENT"]}>
-                <div className="container"><h1>Tickets</h1></div>
-              </RequireRole>
-            }
-          />
-
-          {/* más páginas del menú */}
-          {/* <Route path="/invoices" element={<Invoices />} /> */}
-          {/* <Route path="/reports" element={<Reports />} /> */}
+          {/* 404 dentro de la zona autenticada → lleva al dashboard */}
+          <Route path="*" element={<Navigate to="dashboard" replace />} />
         </Route>
 
-        {/* comodín */}
-        <Route path="*" element={<Navigate to="/dashboard" />} />
+        {/* 404 global (no autenticado) → login */}
+        <Route path="*" element={<Navigate to="/signin" replace />} />
       </Routes>
     </BrowserRouter>
   );
