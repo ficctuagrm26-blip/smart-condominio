@@ -1,72 +1,114 @@
 from rest_framework import serializers
 from django.contrib.auth import get_user_model, authenticate, password_validation
-from .models import Profile
 from django.db import transaction
 from django.core.exceptions import ObjectDoesNotExist
-from rest_framework.authtoken.models import Token
-#CONSEGUIMOS EL USUARIO
+from .models import Profile, Rol
+
 User = get_user_model()
-#CAMPOS REQUERIDOS PARA EL PERFIL O ME 
+
+# ---------- util ----------
+def _resolve_role(role_id=None, role_code=None, default_code="RESIDENT"):
+    try:
+        if role_id is not None:
+            return Rol.objects.get(id=role_id)
+        if role_code:
+            return Rol.objects.get(code=role_code)
+        return Rol.objects.get(code=default_code)
+    except Rol.DoesNotExist:
+        raise serializers.ValidationError({"role": "Rol no encontrado (id/code inválido)."})
+
+
+# ---------- Me ----------
 class MeSerializer(serializers.ModelSerializer):
     role = serializers.SerializerMethodField()
+
     class Meta:
         model = User
         fields = ["id", "username", "email", "first_name", "last_name", "role"]
+
     def get_role(self, obj):
-        return getattr(obj.profile, "role", "RESIDENT")
+        try:
+            return getattr(obj.profile.role, "code", "RESIDENT")
+        except ObjectDoesNotExist:
+            return "RESIDENT"
+
+
+# ---------- Registro ----------
 class RegisterSerializer(serializers.ModelSerializer):
-    password = serializers.CharField(write_only=True, min_length=6)
-    role = serializers.ChoiceField(choices=Profile.ROLE_CHOICES, required=False)
+    password   = serializers.CharField(write_only=True, min_length=6)
+    role_id    = serializers.IntegerField(required=False, write_only=True)
+    role_code  = serializers.CharField(required=False, write_only=True)
+
     class Meta:
         model = User
-        fields = ["username", "email", "password", "role"]
+        fields = ["username", "email", "password", "role_id", "role_code"]
 
     @transaction.atomic
     def create(self, validated_data):
-        role = validated_data.pop("role", "RESIDENT")
+        role_id   = validated_data.pop("role_id", None)
+        role_code = validated_data.pop("role_code", None)
         user = User.objects.create_user(**validated_data)
+
+        role = _resolve_role(role_id, role_code, default_code="RESIDENT")
         Profile.objects.update_or_create(user=user, defaults={"role": role})
         return user
 
+
+# ---------- Admin: CRUD usuarios ----------
 class AdminUserSerializer(serializers.ModelSerializer):
-    role = serializers.SerializerMethodField(read_only=True)      # lectura
-    role_input = serializers.ChoiceField(                         # escritura
-        choices=Profile.ROLE_CHOICES, write_only=True, required=False
-    )
-    password = serializers.CharField(write_only=True, required=False, allow_blank=True, min_length=6)
+    role      = serializers.SerializerMethodField(read_only=True)  # devuelve code
+    role_id   = serializers.IntegerField(required=False, write_only=True)
+    role_code = serializers.CharField(required=False, write_only=True)
+    password  = serializers.CharField(write_only=True, required=False, allow_blank=True, min_length=6)
 
     class Meta:
         model = User
-        fields = ["id","username","email","first_name","last_name","is_active","role","role_input","password"]
+        fields = [
+            "id","username","email","first_name","last_name",
+            "is_active","role","role_id","role_code","password"
+        ]
 
     def get_role(self, instance):
         try:
-            return instance.profile.role
+            return getattr(instance.profile.role, "code", "RESIDENT")
         except ObjectDoesNotExist:
             return "RESIDENT"
 
     @transaction.atomic
     def create(self, validated_data):
-        role = validated_data.pop("role_input", "RESIDENT")
-        password = validated_data.pop("password", None)
+        role_id   = validated_data.pop("role_id", None)
+        role_code = validated_data.pop("role_code", None)
+        password  = validated_data.pop("password", None)
+
         user = User(**validated_data)
         user.set_password(password or User.objects.make_random_password())
         user.save()
+
+        role = _resolve_role(role_id, role_code, default_code="RESIDENT")
         Profile.objects.update_or_create(user=user, defaults={"role": role})
         return user
 
     @transaction.atomic
     def update(self, instance, validated_data):
-        role = validated_data.pop("role_input", None)
-        password = validated_data.pop("password", None)
+        role_id   = validated_data.pop("role_id", None)
+        role_code = validated_data.pop("role_code", None)
+        password  = validated_data.pop("password", None)
+
         for attr, value in validated_data.items():
             setattr(instance, attr, value)
+
         if password and password.strip():
             instance.set_password(password)
         instance.save()
-        if role is not None:
+
+        if role_id is not None or role_code is not None:
+            role = _resolve_role(role_id, role_code, default_code="RESIDENT")
             Profile.objects.update_or_create(user=instance, defaults={"role": role})
+
         return instance
+
+
+# ---------- Login ----------
 class LoginSerializer(serializers.Serializer):
     username = serializers.CharField()
     password = serializers.CharField(write_only=True)
@@ -86,10 +128,11 @@ class LoginResponseSerializer(serializers.Serializer):
     user_id = serializers.IntegerField()
     username = serializers.CharField()
     role = serializers.CharField()
-    
-#CASO DE USO 3 GESTIONAR USUARIO
+
+
+# ---------- Me update ----------
 ROLE_EDITABLE_FIELDS = {
-    "ADMIN":   {"first_name", "last_name", "email", "username"},   # si no quieres permitir username, quítalo
+    "ADMIN":   {"first_name", "last_name", "email", "username"},
     "STAFF":   {"first_name", "last_name", "email"},
     "RESIDENT":{"first_name", "last_name", "email"},
 }
@@ -102,26 +145,20 @@ class MeUpdateSerializer(serializers.Serializer):
 
     def validate(self, attrs):
         user = self.context["request"].user
-        role = getattr(getattr(user, "profile", None), "role", "RESIDENT")
-        allowed = ROLE_EDITABLE_FIELDS.get(role, set())
+        code = getattr(getattr(getattr(user, "profile", None), "role", None), "code", "RESIDENT")
+        allowed = ROLE_EDITABLE_FIELDS.get(code, set())
 
-        # Filtra solo lo permitido para ese rol
+        # filtra solo lo permitido
         not_allowed = set(attrs.keys()) - allowed
         for k in list(not_allowed):
             attrs.pop(k, None)
 
-        if "username" in attrs:
-            # Evita duplicados
-            from django.contrib.auth import get_user_model
-            User = get_user_model()
-            if User.objects.exclude(pk=user.pk).filter(username=attrs["username"]).exists():
-                raise serializers.ValidationError({"username": "Ya está en uso."})
-
-        if "email" in attrs:
-            from django.contrib.auth import get_user_model
-            User = get_user_model()
-            if User.objects.exclude(pk=user.pk).filter(email=attrs["email"]).exists():
-                raise serializers.ValidationError({"email": "Ya está en uso."})
+        # unicidad
+        UserModel = get_user_model()
+        if "username" in attrs and UserModel.objects.exclude(pk=user.pk).filter(username=attrs["username"]).exists():
+            raise serializers.ValidationError({"username": "Ya está en uso."})
+        if "email" in attrs and UserModel.objects.exclude(pk=user.pk).filter(email=attrs["email"]).exists():
+            raise serializers.ValidationError({"email": "Ya está en uso."})
         return attrs
 
     def save(self, **kwargs):
@@ -132,6 +169,7 @@ class MeUpdateSerializer(serializers.Serializer):
         return user
 
 
+# ---------- Change password ----------
 class ChangePasswordSerializer(serializers.Serializer):
     current_password = serializers.CharField(write_only=True)
     new_password     = serializers.CharField(write_only=True, min_length=6)
@@ -140,7 +178,6 @@ class ChangePasswordSerializer(serializers.Serializer):
         user = self.context["request"].user
         if not user.check_password(attrs["current_password"]):
             raise serializers.ValidationError({"current_password": "No coincide."})
-        # Validaciones de contraseña de Django (opcional)
         password_validation.validate_password(attrs["new_password"], user=user)
         return attrs
 
@@ -149,3 +186,16 @@ class ChangePasswordSerializer(serializers.Serializer):
         user.set_password(self.validated_data["new_password"])
         user.save()
         return user
+    
+#ROLES
+class RolSimpleSerializer(serializers.ModelSerializer):
+    class Meta:
+        model = Rol
+        fields = ["id", "code", "name", "description"]
+
+    def validate_code(self, value):
+        v = value.strip().upper()
+        if " " in v:
+            raise serializers.ValidationError("El code no debe contener espacios.")
+        return v
+

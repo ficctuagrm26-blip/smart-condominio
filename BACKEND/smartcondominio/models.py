@@ -1,34 +1,25 @@
 from django.db import models
 from django.contrib.auth.models import User
-# PARA CREAR USUARIOS AUTOMATICAMNETE
 from django.db.models.signals import post_save
 from django.dispatch import receiver
 
-# Create your models here.
-
-
-class Task(models.Model):
-    title = models.CharField(max_length=200)
+#CREAMOS UNA TABLA DE TIPO ROL 
+class Rol(models.Model):
+    code = models.CharField(max_length=30, unique=True)   # Ej: ADMIN
+    name = models.CharField(max_length=50)                # Ej: Administrador
     description = models.TextField(blank=True)
-    done = models.BooleanField(default=False)
 
     def __str__(self):
-        return self.title
+        return f"{self.code} - {self.name}"
 
+#TABLA DE TIPO PERFIL
+# Profile: cambia role de CharField -> ForeignKey
 class Profile(models.Model):
-    ROLE_CHOICES = (
-        ("ADMIN", "Administrador"),
-        ("STAFF", "Personal"),
-        ("RESIDENT", "Residente"),
-    )
     user = models.OneToOneField(User, on_delete=models.CASCADE)
-    role = models.CharField(max_length=10, choices=ROLE_CHOICES, default="RESIDENT")
-
+    role = models.ForeignKey(Rol, null=True, blank=True, on_delete=models.SET_NULL)
     def __str__(self):
-        return f"{self.user.username} ({self.role})"
-    
-
+        return f"{self.user.username} ({self.role.code if self.role else 'Sin rol'})"
 
 @receiver(post_save, sender=User)
 def ensure_profile(sender, instance, created, **kwargs):
-    Profile.objects.get_or_create(user=instance)  # 👈 idempotente
+    Profile.objects.get_or_create(user=instance)

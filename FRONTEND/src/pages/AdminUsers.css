@@ -197,3 +197,18 @@ body { margin: 0; background: var(--bg); color: var(--txt); font-family: Inter, 
   .is-sticky-right { position: static; box-shadow: none; }
   .au-row-actions { justify-content: flex-start; flex-wrap: wrap; }
 }
+/* Última columna con espacio suficiente y sin recortes */
+.au-table th:last-child,
+.au-table td:last-child {
+  width: 220px;
+  white-space: nowrap;
+  overflow: visible;
+}
+
+/* Alineación bonita de los botones */
+.au-table td.actions {
+  text-align: right;
+  display: flex;
+  justify-content: flex-end;
+  gap: 8px;
+}
