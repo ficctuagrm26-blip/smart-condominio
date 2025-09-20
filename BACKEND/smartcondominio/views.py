@@ -6,7 +6,7 @@ from django.contrib.auth import login, logout, authenticate
 from django.db import IntegrityError
 from django.contrib.auth.decorators import login_required
 from rest_framework import viewsets
-from .models import Task
+
 # Create your views here.
 
 def home(request):
@@ -23,7 +23,6 @@ def signup(request):
                 user = User.objects.create_user(username = request.POST['username'], password = request.POST['password1'])
                 user.save()
                 login(request,user)
-                return redirect('tasks')
                 
             except IntegrityError:
                 return render(request, 'signup.html', {
@@ -37,8 +36,7 @@ def signup(request):
                 "error": 'Password do not match'
                 })
 @login_required        
-def tasks(request):
-    return render(request, 'tasks.html')
+
 
 def signout(request):
     logout(request)
@@ -58,7 +56,5 @@ def signin(request):
             'form': AuthenticationForm,
             'error': 'Username or Password is incorrect'
         })
-        else:
-            login(request,user)
-            return redirect('tasks')
+
 

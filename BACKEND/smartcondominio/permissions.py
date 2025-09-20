@@ -1,20 +1,37 @@
+# smartcondominio/permissions.py
 from rest_framework.permissions import BasePermission
-from django.core.exceptions import ObjectDoesNotExist
+
+def user_role_code(user):
+    # Devuelve 'ADMIN' | 'STAFF' | 'RESIDENT' o None
+    return getattr(getattr(getattr(user, "profile", None), "role", None), "code", None)
 
 class IsAdmin(BasePermission):
     def has_permission(self, request, view):
         u = request.user
-        if not u.is_authenticated:
+        if not getattr(u, "is_authenticated", False):
             return False
-        try:
-            return u.profile.role == "ADMIN"
-        except ObjectDoesNotExist:
-            return False
+        if getattr(u, "is_superuser", False):
+            return True
+        return user_role_code(u) == "ADMIN"
 
 class IsStaff(BasePermission):
     def has_permission(self, request, view):
-        return hasattr(request.user, "profile") and request.user.profile.role in ["STAFF", "ADMIN"]
+        u = request.user
+        if not getattr(u, "is_authenticated", False):
+            return False
+        if getattr(u, "is_superuser", False):
+            return True
+        return user_role_code(u) in {"STAFF", "ADMIN"}
 
 class IsResident(BasePermission):
     def has_permission(self, request, view):
-        return hasattr(request.user, "profile") and request.user.profile.role == "RESIDENT"
+        u = request.user
+        if not getattr(u, "is_authenticated", False):
+            return False
+        if getattr(u, "is_superuser", False):
+            return True
+        return user_role_code(u) == "RESIDENT"
+
+# Alias opcional para compatibilidad con ejemplos anteriores
+IsAdminRole = IsAdmin
+

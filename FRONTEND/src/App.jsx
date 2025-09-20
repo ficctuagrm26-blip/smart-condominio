@@ -5,7 +5,8 @@ import Me from "./pages/Me";
 import Layout from "./components/Layout";
 import RequireAuth from "./components/RequireAuth";
 import RequireRole from "./components/RequireRole";
-import AdminUsers from "./pages/AdminUsers"; // asegúrate de tener este componente
+import AdminUsers from "./pages/AdminUsers"; 
+import RolesPage from "./pages/Roles";
 
 export default function App() {
   return (
@@ -29,6 +30,16 @@ export default function App() {
               </RequireRole>
             }
           />
+          {/* Solo ADMIN para los roles */}
+          <Route
+            path="admin/roles"
+            element={
+              <RequireRole allow={["ADMIN"]}>
+                <RolesPage />
+              </RequireRole>
+            }
+          />
+
 
           {/* 404 dentro de la zona autenticada → lleva al dashboard */}
           <Route path="*" element={<Navigate to="dashboard" replace />} />

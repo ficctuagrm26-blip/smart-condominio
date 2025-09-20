@@ -8,8 +8,8 @@ from rest_framework import status
 
 from .permissions import IsAdmin
 
-
-from .serializers import RegisterSerializer, MeSerializer, AdminUserSerializer, MeUpdateSerializer, ChangePasswordSerializer
+from .models import Rol
+from .serializers import RegisterSerializer, MeSerializer, AdminUserSerializer, MeUpdateSerializer, ChangePasswordSerializer, RolSimpleSerializer
 from .permissions import IsAdmin
 from django.db.models import Q
 from django.db.models.deletion import ProtectedError, RestrictedError
@@ -102,3 +102,9 @@ def change_password(request):
     ser.save()
     return Response({"detail": "Contraseña actualizada correctamente."}, status=status.HTTP_200_OK)
 
+#ROLVIEWSET
+class RolViewSet(viewsets.ModelViewSet):
+    queryset = Rol.objects.all().order_by('code')
+    serializer_class = RolSimpleSerializer  # fields: ["id","code","name","description"]
+    authentication_classes = [TokenAuthentication]
+    permission_classes = [IsAuthenticated, IsAdmin]  # solo admin

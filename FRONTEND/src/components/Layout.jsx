@@ -40,7 +40,7 @@ export default function Layout() {
                 aria-expanded={openGestion}
                 aria-controls="grupo-gestion"
               >
-                <span>Gestión</span>
+                <span>Gestiónar Usuarios</span>
                 <span className={`chev ${openGestion ? "open" : ""}`} aria-hidden>▸</span>
               </button>
 
@@ -51,8 +51,19 @@ export default function Layout() {
                 >
                   Usuarios
                 </NavLink>
-                {/* Aquí podrás ir sumando más submódulos: */}
-                {/* <NavLink to="/admin/personal" className={({isActive}) => isActive ? "nav__sublink active" : "nav__sublink"}>Personal</NavLink> */}
+                {/* 👉 Nuevo submódulo */}
+                <NavLink
+                  to="/admin/roles"
+                  className={({ isActive }) => (isActive ? "nav__sublink active" : "nav__sublink")}
+                >
+                  Roles
+                </NavLink>
+
+                {/* futuros módulos:
+                <NavLink to="/admin/permissions" className={({isActive}) => isActive ? "nav__sublink active" : "nav__sublink"}>
+                  Permisos
+                </NavLink>
+                */}
               </div>
             </div>
           )}
