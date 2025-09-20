@@ -8,6 +8,8 @@ const BASE = RAW_BASE.endsWith("/") ? RAW_BASE : RAW_BASE + "/";
 
 const LOGIN_PATH = import.meta.env.VITE_API_LOGIN_PATH || "auth/login/";
 const ME_PATH = import.meta.env.VITE_API_ME_PATH || "auth/me/";
+const ME_UPDATE_PATH = import.meta.env.VITE_API_UPDATE_PATH || "auth/me/update/";
+const CHANGE_PASSWORD = "auth/change-password/"
 
 //CLIENTE AXIOS
 export const api = axios.create({
@@ -35,7 +37,8 @@ if (saved) setAuthToken(saved);
 
 // 🔎 logea cada request para verificar la URL final
 api.interceptors.request.use((cfg) => {
-  console.log("[REQUEST]", (cfg.baseURL || "") + (cfg.url || ""), cfg.params);
+  const full = new URL(cfg.url ?? "", cfg.baseURL ?? window.location.origin).toString();
+  console.log("[REQUEST]", full, cfg.params);
   return cfg;
 });
 // Limpieza automática si el backend responde 401
@@ -67,6 +70,18 @@ export async function me() {
 const { data } = await api.get(ME_PATH);
 return data; // { id, username, role/rol/rolNombre, ... }
 }
+//METODO PARA ACTUALIZAR EL PERFIL
+export async function updateMe(payload) {
+const { data } = await api.patch(ME_UPDATE_PATH,payload);
+  return data;
+}
+
+//METODO PARA ACTUALIZAR LA CONTRASEÑA DEL PERFIL 
+export async function changePassword({ current_password, new_password}) {
+  const { data } = await api.post(CHANGE_PASSWORD, { current_password, new_password});
+  return data;
+}
+
 
 //LIMPIA EL TOKEN, HEADER Y CACHE
 export function logout() {

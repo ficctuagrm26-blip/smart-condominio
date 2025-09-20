@@ -9,7 +9,7 @@ from rest_framework import status
 from .permissions import IsAdmin
 
 
-from .serializers import RegisterSerializer, MeSerializer, AdminUserSerializer
+from .serializers import RegisterSerializer, MeSerializer, AdminUserSerializer, MeUpdateSerializer, ChangePasswordSerializer
 from .permissions import IsAdmin
 from django.db.models import Q
 from django.db.models.deletion import ProtectedError, RestrictedError
@@ -73,5 +73,32 @@ class AdminUserViewSet(viewsets.ModelViewSet):
 @permission_classes([IsAuthenticated])
 def me(request):
     return Response(MeSerializer(request.user).data)
-#PRUEBA
+
+
+@api_view(['PATCH'])
+@authentication_classes([TokenAuthentication])
+@permission_classes([IsAuthenticated])
+def me_update(request):
+    """
+    Actualiza datos del usuario autenticado.
+    Respeta campos permitidos por rol (ver ROLE_EDITABLE_FIELDS).
+    """
+    ser = MeUpdateSerializer(data=request.data, context={"request": request})
+    ser.is_valid(raise_exception=True)
+    user = ser.save()
+    return Response(MeSerializer(user).data, status=status.HTTP_200_OK)
+
+
+@api_view(['POST'])
+@authentication_classes([TokenAuthentication])
+@permission_classes([IsAuthenticated])
+def change_password(request):
+    """
+    Cambia la contraseña del usuario autenticado.
+    Requiere current_password y new_password.
+    """
+    ser = ChangePasswordSerializer(data=request.data, context={"request": request})
+    ser.is_valid(raise_exception=True)
+    ser.save()
+    return Response({"detail": "Contraseña actualizada correctamente."}, status=status.HTTP_200_OK)
 

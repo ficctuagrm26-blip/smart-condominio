@@ -1,6 +1,6 @@
 
 from django.urls import path
-from .views_api import RegisterView, me, AdminUserViewSet
+from .views_api import RegisterView, me, AdminUserViewSet, me_update, change_password
 from rest_framework.routers import DefaultRouter
 from rest_framework.authtoken.views import obtain_auth_token
 
@@ -11,6 +11,8 @@ urlpatterns = [
     path('auth/register/', RegisterView.as_view(), name='register'),
      path('auth/login/', obtain_auth_token, name='token_login'), 
     path('auth/me/', me, name='me'),
+    path('auth/me/update/', me_update,      name='me-update'),
+    path('auth/change-password/', change_password, name='change-password'),
 ]
 
 
