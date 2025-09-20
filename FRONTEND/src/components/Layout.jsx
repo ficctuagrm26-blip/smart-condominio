@@ -59,11 +59,10 @@ export default function Layout() {
                   Roles
                 </NavLink>
 
-                {/* futuros módulos:
+                {/* futuros módulos:*/}
                 <NavLink to="/admin/permissions" className={({isActive}) => isActive ? "nav__sublink active" : "nav__sublink"}>
                   Permisos
                 </NavLink>
-                */}
               </div>
             </div>
           )}
