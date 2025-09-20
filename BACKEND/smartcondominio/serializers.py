@@ -3,6 +3,7 @@ from django.contrib.auth import get_user_model, authenticate, password_validatio
 from django.db import transaction
 from django.core.exceptions import ObjectDoesNotExist
 from .models import Profile, Rol
+from django.contrib.auth.models import Permission  # 👈 necesario para PermissionBriefSerializer
 
 User = get_user_model()
 
@@ -12,11 +13,11 @@ def _resolve_role(role_id=None, role_code=None, default_code="RESIDENT"):
         if role_id is not None:
             return Rol.objects.get(id=role_id)
         if role_code:
-            return Rol.objects.get(code=role_code)
+            code = str(role_code).strip().upper()   # normaliza
+            return Rol.objects.get(code=code)
         return Rol.objects.get(code=default_code)
     except Rol.DoesNotExist:
         raise serializers.ValidationError({"role": "Rol no encontrado (id/code inválido)."})
-
 
 # ---------- Me ----------
 class MeSerializer(serializers.ModelSerializer):
@@ -31,7 +32,6 @@ class MeSerializer(serializers.ModelSerializer):
             return getattr(obj.profile.role, "code", "RESIDENT")
         except ObjectDoesNotExist:
             return "RESIDENT"
-
 
 # ---------- Registro ----------
 class RegisterSerializer(serializers.ModelSerializer):
@@ -48,11 +48,9 @@ class RegisterSerializer(serializers.ModelSerializer):
         role_id   = validated_data.pop("role_id", None)
         role_code = validated_data.pop("role_code", None)
         user = User.objects.create_user(**validated_data)
-
         role = _resolve_role(role_id, role_code, default_code="RESIDENT")
         Profile.objects.update_or_create(user=user, defaults={"role": role})
         return user
-
 
 # ---------- Admin: CRUD usuarios ----------
 class AdminUserSerializer(serializers.ModelSerializer):
@@ -73,6 +71,22 @@ class AdminUserSerializer(serializers.ModelSerializer):
             return getattr(instance.profile.role, "code", "RESIDENT")
         except ObjectDoesNotExist:
             return "RESIDENT"
+
+    def validate(self, attrs):
+        instance = getattr(self, "instance", None)
+        UserModel = get_user_model()
+
+        if instance:
+            if "username" in attrs and UserModel.objects.exclude(pk=instance.pk).filter(username=attrs["username"]).exists():
+                raise serializers.ValidationError({"username": "Ya está en uso."})
+            if "email" in attrs and attrs.get("email") and UserModel.objects.exclude(pk=instance.pk).filter(email=attrs["email"]).exists():
+                raise serializers.ValidationError({"email": "Ya está en uso."})
+        else:
+            if "username" in attrs and UserModel.objects.filter(username=attrs["username"]).exists():
+                raise serializers.ValidationError({"username": "Ya está en uso."})
+            if "email" in attrs and attrs.get("email") and UserModel.objects.filter(email=attrs["email"]).exists():
+                raise serializers.ValidationError({"email": "Ya está en uso."})
+        return attrs
 
     @transaction.atomic
     def create(self, validated_data):
@@ -107,7 +121,6 @@ class AdminUserSerializer(serializers.ModelSerializer):
 
         return instance
 
-
 # ---------- Login ----------
 class LoginSerializer(serializers.Serializer):
     username = serializers.CharField()
@@ -122,13 +135,11 @@ class LoginSerializer(serializers.Serializer):
         data['user'] = user
         return data
 
-
 class LoginResponseSerializer(serializers.Serializer):
     token = serializers.CharField()
     user_id = serializers.IntegerField()
     username = serializers.CharField()
     role = serializers.CharField()
-
 
 # ---------- Me update ----------
 ROLE_EDITABLE_FIELDS = {
@@ -168,7 +179,6 @@ class MeUpdateSerializer(serializers.Serializer):
         user.save()
         return user
 
-
 # ---------- Change password ----------
 class ChangePasswordSerializer(serializers.Serializer):
     current_password = serializers.CharField(write_only=True)
@@ -186,16 +196,27 @@ class ChangePasswordSerializer(serializers.Serializer):
         user.set_password(self.validated_data["new_password"])
         user.save()
         return user
-    
-#ROLES
+
+# ---------- Permisos (catálogo) ----------
+class PermissionBriefSerializer(serializers.ModelSerializer):
+    content_type = serializers.SerializerMethodField()
+
+    class Meta:
+        model = Permission
+        fields = ["id", "codename", "name", "content_type"]
+
+    def get_content_type(self, obj):
+        return f"{obj.content_type.app_label}.{obj.content_type.model}"
+
+# ---------- Roles ----------
 class RolSimpleSerializer(serializers.ModelSerializer):
     class Meta:
         model = Rol
-        fields = ["id", "code", "name", "description"]
+        fields = ["id", "code", "name", "description", "is_system"]
+        read_only_fields = ["id", "is_system"]  # que no lo cambien por API
 
     def validate_code(self, value):
         v = value.strip().upper()
         if " " in v:
             raise serializers.ValidationError("El code no debe contener espacios.")
         return v
-

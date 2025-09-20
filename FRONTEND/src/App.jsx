@@ -7,7 +7,7 @@ import RequireAuth from "./components/RequireAuth";
 import RequireRole from "./components/RequireRole";
 import AdminUsers from "./pages/AdminUsers"; 
 import RolesPage from "./pages/Roles";
-
+import Permisos from "./pages/Permisos";
 export default function App() {
   return (
     <BrowserRouter>
@@ -36,6 +36,14 @@ export default function App() {
             element={
               <RequireRole allow={["ADMIN"]}>
                 <RolesPage />
+              </RequireRole>
+            }
+          />
+          <Route
+            path="admin/permissions"
+            element={
+              <RequireRole allow={["ADMIN"]}>
+                <Permisos /> {/* 👈 nueva página */}
               </RequireRole>
             }
           />

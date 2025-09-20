@@ -1,12 +1,14 @@
 
 from django.urls import path
-from .views_api import RegisterView, me, AdminUserViewSet, me_update, change_password, RolViewSet
+from .views_api import RegisterView, me, AdminUserViewSet, me_update, change_password, RolViewSet, PermissionViewSet
 from rest_framework.routers import DefaultRouter
 from rest_framework.authtoken.views import obtain_auth_token
+
 
 router = DefaultRouter()
 router.register(r'admin/users', AdminUserViewSet, basename='admin-users')
 router.register(r'roles',RolViewSet, basename='roles')
+router.register(r'permissions', PermissionViewSet, basename='permissions')
 
 
 urlpatterns = [

@@ -9,23 +9,28 @@ function authHeaders() {
   };
 }
 
-// Listar roles (acepta pageUrl de DRF para paginación)
+async function safeJson(res) {
+  try { return await res.json(); } catch { return { detail: res.statusText || "Error" }; }
+}
+
+// ---------- ROLES ----------
 export async function listRoles(pageUrl) {
   const url = pageUrl || `${BASE}/roles/`;
   const res = await fetch(url, { headers: authHeaders() });
-  if (!res.ok) throw await res.json();
-  return res.json(); // {count, next, previous, results:[...] }
+  const data = await res.json();
+  if (!res.ok) throw data;
+  return data; // {count,next,previous,results:[...] }
 }
 
 export async function createRole(payload) {
-  // payload: { code, name, description? }
   const res = await fetch(`${BASE}/roles/`, {
     method: "POST",
     headers: authHeaders(),
     body: JSON.stringify(payload),
   });
-  if (!res.ok) throw await res.json();
-  return res.json();
+  const data = await res.json();
+  if (!res.ok) throw data;
+  return data;
 }
 
 export async function updateRole(id, payload) {
@@ -34,8 +39,9 @@ export async function updateRole(id, payload) {
     headers: authHeaders(),
     body: JSON.stringify(payload),
   });
-  if (!res.ok) throw await res.json();
-  return res.json();
+  const data = await res.json();
+  if (!res.ok) throw data;
+  return data;
 }
 
 export async function deleteRole(id) {
@@ -43,6 +49,45 @@ export async function deleteRole(id) {
     method: "DELETE",
     headers: authHeaders(),
   });
-  if (!res.ok && res.status !== 204) throw await res.json();
+  if (!res.ok && res.status !== 204) throw await safeJson(res);
   return true;
+}
+
+// ---------- PERMISOS ----------
+export async function listPermissions(q = "") {
+  const url = new URL(`${BASE}/permissions/`);
+  if (q) url.searchParams.set("q", q);
+  const r = await fetch(url, { headers: authHeaders() });
+  const data = await r.json();
+  if (!r.ok) throw data;
+  return data; // {count,next,previous,results:[...]}
+}
+
+export async function getRolePermissions(roleId) {
+  const r = await fetch(`${BASE}/roles/${roleId}/permissions/`, { headers: authHeaders() });
+  const data = await r.json();
+  if (!r.ok) throw data;
+  return data; // [{id,codename,name,content_type}]
+}
+
+export async function addRolePermissions(roleId, ids) {
+  const r = await fetch(`${BASE}/roles/${roleId}/add-permissions/`, {
+    method: "POST",
+    headers: authHeaders(),
+    body: JSON.stringify({ permission_ids: ids }),
+  });
+  const data = await r.json();
+  if (!r.ok) throw data;
+  return data;
+}
+
+export async function removeRolePermissions(roleId, ids) {
+  const r = await fetch(`${BASE}/roles/${roleId}/remove-permissions/`, {
+    method: "POST",
+    headers: authHeaders(),
+    body: JSON.stringify({ permission_ids: ids }),
+  });
+  const data = await r.json();
+  if (!r.ok) throw data;
+  return data;
 }
