@@ -1,11 +1,15 @@
 // src/api/roles.js
-const BASE = import.meta.env.VITE_API_BASE_URL || "http://localhost:8000/api";
+const RAW_BASE = import.meta.env.VITE_API_URL || "http://127.0.0.1:8000/api/";
+const BASE = RAW_BASE.endsWith("/") ? RAW_BASE : RAW_BASE + "/";
+
+// Helper para unir paths sin duplicar slash
+const u = (path) => `${BASE}${path}`; // path sin slash inicial, ej. 'roles/'
 
 function authHeaders() {
   const token = localStorage.getItem("token");
   return {
     "Content-Type": "application/json",
-    ...(token ? { Authorization: `Token ${token}` } : {}),
+    ...(token ? { Authorization: `Token ${token}` } : {}), // usa Bearer si tu backend es JWT
   };
 }
 
@@ -15,15 +19,16 @@ async function safeJson(res) {
 
 // ---------- ROLES ----------
 export async function listRoles(pageUrl) {
-  const url = pageUrl || `${BASE}/roles/`;
+  // Si DRF te dio una URL absoluta (next), úsala tal cual; si no, construye con base
+  const url = pageUrl || u("roles/");
   const res = await fetch(url, { headers: authHeaders() });
   const data = await res.json();
   if (!res.ok) throw data;
-  return data; // {count,next,previous,results:[...] }
+  return data;
 }
 
 export async function createRole(payload) {
-  const res = await fetch(`${BASE}/roles/`, {
+  const res = await fetch(u("roles/"), {
     method: "POST",
     headers: authHeaders(),
     body: JSON.stringify(payload),
@@ -34,7 +39,7 @@ export async function createRole(payload) {
 }
 
 export async function updateRole(id, payload) {
-  const res = await fetch(`${BASE}/roles/${id}/`, {
+  const res = await fetch(u(`roles/${id}/`), {
     method: "PATCH",
     headers: authHeaders(),
     body: JSON.stringify(payload),
@@ -45,7 +50,7 @@ export async function updateRole(id, payload) {
 }
 
 export async function deleteRole(id) {
-  const res = await fetch(`${BASE}/roles/${id}/`, {
+  const res = await fetch(u(`roles/${id}/`), {
     method: "DELETE",
     headers: authHeaders(),
   });
@@ -55,23 +60,24 @@ export async function deleteRole(id) {
 
 // ---------- PERMISOS ----------
 export async function listPermissions(q = "") {
-  const url = new URL(`${BASE}/permissions/`);
+  // Usa el 2do parámetro de URL() para hacer join seguro con BASE
+  const url = new URL("permissions/", BASE);
   if (q) url.searchParams.set("q", q);
   const r = await fetch(url, { headers: authHeaders() });
   const data = await r.json();
   if (!r.ok) throw data;
-  return data; // {count,next,previous,results:[...]}
+  return data;
 }
 
 export async function getRolePermissions(roleId) {
-  const r = await fetch(`${BASE}/roles/${roleId}/permissions/`, { headers: authHeaders() });
+  const r = await fetch(u(`roles/${roleId}/permissions/`), { headers: authHeaders() });
   const data = await r.json();
   if (!r.ok) throw data;
-  return data; // [{id,codename,name,content_type}]
+  return data;
 }
 
 export async function addRolePermissions(roleId, ids) {
-  const r = await fetch(`${BASE}/roles/${roleId}/add-permissions/`, {
+  const r = await fetch(u(`roles/${roleId}/add-permissions/`), {
     method: "POST",
     headers: authHeaders(),
     body: JSON.stringify({ permission_ids: ids }),
@@ -82,7 +88,7 @@ export async function addRolePermissions(roleId, ids) {
 }
 
 export async function removeRolePermissions(roleId, ids) {
-  const r = await fetch(`${BASE}/roles/${roleId}/remove-permissions/`, {
+  const r = await fetch(u(`roles/${roleId}/remove-permissions/`), {
     method: "POST",
     headers: authHeaders(),
     body: JSON.stringify({ permission_ids: ids }),
