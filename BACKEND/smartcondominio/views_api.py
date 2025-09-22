@@ -2,7 +2,6 @@ from django.contrib.auth import get_user_model
 from django.db import IntegrityError
 from django.db.models import Q
 from django.db.models.deletion import ProtectedError, RestrictedError
-
 from rest_framework import status, permissions, viewsets, filters
 from rest_framework.authentication import TokenAuthentication
 from rest_framework.decorators import api_view, permission_classes, authentication_classes, action
@@ -10,8 +9,9 @@ from rest_framework.permissions import IsAuthenticated
 from rest_framework.response import Response
 
 from django.contrib.auth.models import Permission
-
-from .models import Rol, Profile
+from django_filters.rest_framework import DjangoFilterBackend
+from rest_framework.filters import SearchFilter, OrderingFilter
+from .models import Rol, Profile, Unidad
 from .permissions import IsAdmin
 from .serializers import (
     RegisterSerializer,
@@ -20,7 +20,7 @@ from .serializers import (
     MeUpdateSerializer,
     ChangePasswordSerializer,
     RolSimpleSerializer,
-    PermissionBriefSerializer,   # 👈 lo importamos (definido en serializers.py)
+    PermissionBriefSerializer, UnidadSerializer   # 👈 lo importamos (definido en serializers.py)
 )
 
 User = get_user_model()
@@ -163,3 +163,37 @@ class PermissionViewSet(viewsets.ModelViewSet):
                 Q(content_type__model__icontains=q)
             )
         return qs
+#-----UNIDAD GESTION
+class UnidadViewSet(viewsets.ModelViewSet):
+    queryset = Unidad.objects.select_related("propietario", "residente").all()
+    serializer_class = UnidadSerializer
+
+    authentication_classes = [TokenAuthentication]
+    # Solo admin escribe; cualquiera autenticado puede leer (cámbialo si quieres solo admin total)
+    permission_classes = [IsAuthenticated, IsAdmin]
+
+    # backends correctos
+    filter_backends = [DjangoFilterBackend, SearchFilter, OrderingFilter]
+    filterset_fields = ["torre", "bloque", "estado", "tipo", "is_active", "propietario", "residente"]
+    search_fields = ["torre", "bloque", "numero"]
+    ordering_fields = ["torre", "bloque", "numero", "updated_at"]
+    ordering = ["torre", "bloque", "numero"]
+
+    @action(methods=["post"], detail=True, url_path="desactivar")
+    def desactivar(self, request, pk=None):
+        obj = self.get_object()
+        obj.is_active = False
+        obj.estado = "INACTIVA"
+        obj.save(update_fields=["is_active", "estado"])
+        return Response(self.get_serializer(obj).data, status=status.HTTP_200_OK)
+
+    @action(methods=["post"], detail=True, url_path="asignar")
+    def asignar(self, request, pk=None):
+        """
+        Body: { "propietario": user_id | null, "residente": user_id | null }
+        """
+        obj = self.get_object()
+        ser = self.get_serializer(obj, data=request.data, partial=True)
+        ser.is_valid(raise_exception=True)
+        obj = ser.save()
+        return Response(self.get_serializer(obj).data, status=status.HTTP_200_OK)
