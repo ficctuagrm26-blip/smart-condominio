@@ -8,6 +8,7 @@ import RequireRole from "./components/RequireRole";
 import AdminUsers from "./pages/AdminUsers"; 
 import RolesPage from "./pages/Roles";
 import Permisos from "./pages/Permisos";
+import UnitsPage from "./pages/UnitsPage";
 export default function App() {
   return (
     <BrowserRouter>
@@ -47,11 +48,20 @@ export default function App() {
               </RequireRole>
             }
           />
-
-
+          <Route
+            path="admin/unidades"
+            element={
+              <RequireRole allow={["ADMIN"]}>
+                <UnitsPage /> {/* 👈 nueva página */}
+              </RequireRole>
+            }
+          />
           {/* 404 dentro de la zona autenticada → lleva al dashboard */}
           <Route path="*" element={<Navigate to="dashboard" replace />} />
         </Route>
+        
+          
+
 
         {/* 404 global (no autenticado) → login */}
         <Route path="*" element={<Navigate to="/signin" replace />} />

@@ -4,7 +4,7 @@ from django.db import transaction
 from django.core.exceptions import ObjectDoesNotExist
 from .models import Profile, Rol
 from django.contrib.auth.models import Permission  # 👈 necesario para PermissionBriefSerializer
-
+from .models import Unidad
 User = get_user_model()
 
 # ---------- util ----------
@@ -220,3 +220,38 @@ class RolSimpleSerializer(serializers.ModelSerializer):
         if " " in v:
             raise serializers.ValidationError("El code no debe contener espacios.")
         return v
+    
+#-------UNIDADES GESTION -------
+class UnidadSerializer(serializers.ModelSerializer):
+    propietario_nombre = serializers.CharField(source="propietario.get_full_name", read_only=True)
+    residente_nombre = serializers.CharField(source="residente.get_full_name", read_only=True)
+
+    class Meta:
+        model = Unidad
+        fields = [
+            "id",
+            "torre", "bloque", "numero", "piso",
+            "tipo", "metraje", "coeficiente",
+            "dormitorios", "parqueos", "bodegas",
+            "estado", "is_active",
+            "propietario", "propietario_nombre",
+            "residente", "residente_nombre",
+            "created_at", "updated_at",
+        ]
+        read_only_fields = ["created_at", "updated_at"]
+
+    def validate(self, attrs):
+        # Evita duplicados (con soporte para PATCH)
+        torre = attrs.get("torre", getattr(self.instance, "torre", None))
+        bloque = attrs.get("bloque", getattr(self.instance, "bloque", None))
+        numero = attrs.get("numero", getattr(self.instance, "numero", None))
+
+        if torre and numero:
+            qs = Unidad.objects.filter(torre=torre, bloque=bloque, numero=numero)
+            if self.instance:
+                qs = qs.exclude(pk=self.instance.pk)
+            if qs.exists():
+                raise serializers.ValidationError(
+                    {"numero": "Ya existe una unidad con esa combinación (torre/bloque/número)."}
+                )
+        return attrs

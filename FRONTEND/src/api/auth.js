@@ -112,9 +112,9 @@ export function getRole(obj) {
     ADMIN: "ADMIN",
     ADMINISTRADOR: "ADMIN",
     STAFF: "STAFF",
-    PERSONAL: "PERSONAL",
+    PERSONAL: "STAFF",
     RESIDENT: "RESIDENTE",
-    RESIDENTE: "RESIDENTE",
+    RESIDENTE: "RESIDENT",
     CLIENT: "CLIENTE",
     CLIENTE: "CLIENTE",
   };

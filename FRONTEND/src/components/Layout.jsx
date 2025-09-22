@@ -63,6 +63,9 @@ export default function Layout() {
                 <NavLink to="/admin/permissions" className={({isActive}) => isActive ? "nav__sublink active" : "nav__sublink"}>
                   Permisos
                 </NavLink>
+                <NavLink to="/admin/unidades" className={({isActive}) => isActive ? "nav__sublink active" : "nav__sublink"}>
+                  Gestionar Unidades
+                </NavLink>
               </div>
             </div>
           )}
