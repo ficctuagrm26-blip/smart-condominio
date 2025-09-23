@@ -66,6 +66,9 @@ export default function Layout() {
                 <NavLink to="/admin/unidades" className={({isActive}) => isActive ? "nav__sublink active" : "nav__sublink"}>
                   Gestionar Unidades
                 </NavLink>
+                <NavLink to="/admin/cuotas" className={({isActive}) => isActive ? "nav__sublink active" : "nav__sublink"}>
+                  Gestionar Cuotas
+                </NavLink>
               </div>
             </div>
           )}

@@ -11,7 +11,7 @@ from rest_framework.response import Response
 from django.contrib.auth.models import Permission
 from django_filters.rest_framework import DjangoFilterBackend
 from rest_framework.filters import SearchFilter, OrderingFilter
-from .models import Rol, Profile, Unidad
+from .models import Rol, Profile, Unidad, Cuota, Pago
 from .permissions import IsAdmin
 from .serializers import (
     RegisterSerializer,
@@ -20,7 +20,7 @@ from .serializers import (
     MeUpdateSerializer,
     ChangePasswordSerializer,
     RolSimpleSerializer,
-    PermissionBriefSerializer, UnidadSerializer   # 👈 lo importamos (definido en serializers.py)
+    PermissionBriefSerializer, UnidadSerializer, CuotaSerializer, PagoCreateSerializer, PagoSerializer,GenerarCuotasSerializer   # 👈 lo importamos (definido en serializers.py)
 )
 
 User = get_user_model()
@@ -197,3 +197,97 @@ class UnidadViewSet(viewsets.ModelViewSet):
         ser.is_valid(raise_exception=True)
         obj = ser.save()
         return Response(self.get_serializer(obj).data, status=status.HTTP_200_OK)
+
+#PAGOS Y CUOTAS
+class CuotaViewSet(viewsets.ModelViewSet):
+    queryset = Cuota.objects.select_related("unidad").all()
+    serializer_class = CuotaSerializer
+    authentication_classes = [TokenAuthentication]
+    permission_classes = [IsAuthenticated]  # + tu IsAdmin si aplica
+
+    filter_backends = [DjangoFilterBackend, SearchFilter, OrderingFilter]
+    filterset_fields = ["unidad", "periodo", "concepto", "estado", "is_active", "unidad__torre"]
+    search_fields = ["periodo", "concepto", "unidad__torre", "unidad__bloque", "unidad__numero"]
+    ordering_fields = ["vencimiento", "updated_at", "total_a_pagar", "pagado"]
+    ordering = ["-periodo", "unidad_id"]
+
+    # ---------- generar ----------
+    def get_serializer_class(self):
+        if getattr(self, "action", None) == "generar":
+            return GenerarCuotasSerializer
+        return super().get_serializer_class()
+
+    @action(detail=False, methods=["post"], url_path="generar")
+    def generar(self, request):
+        s = self.get_serializer(data=request.data)  # GenerarCuotasSerializer
+        s.is_valid(raise_exception=True)
+        data = s.validated_data
+
+        periodo        = data["periodo"]
+        concepto       = data["concepto"]
+        monto_base     = data["monto_base"]
+        usa_coeficiente= data["usa_coeficiente"]
+        vencimiento    = data["vencimiento"]
+
+        afectadas = []
+        for u in Unidad.objects.filter(is_active=True):
+            c, _ = Cuota.objects.get_or_create(
+                unidad=u, periodo=periodo, concepto=concepto, is_active=True,
+                defaults={
+                    "monto_base": monto_base,
+                    "usa_coeficiente": usa_coeficiente,
+                    "coeficiente_snapshot": u.coeficiente or 0,
+                    "vencimiento": vencimiento,
+                }
+            )
+            # actualizar si ya existía
+            c.monto_base = monto_base
+            c.usa_coeficiente = usa_coeficiente
+            if usa_coeficiente:
+                c.coeficiente_snapshot = u.coeficiente or 0
+            c.vencimiento = vencimiento
+            c.recalc_importes()
+            c.recalc_estado()
+            c.save()
+            afectadas.append(c.id)
+
+        return Response({"ok": True, "cuotas_afectadas": afectadas, "total": len(afectadas)}, status=status.HTTP_201_CREATED)
+
+    # ---------- pagar desde la cuota ----------
+    @action(detail=True, methods=["post"], url_path="pagos")
+    def registrar_pago(self, request, pk=None):
+        cuota = self.get_object()
+        data = {**request.data, "cuota": cuota.id}  # forzar la cuota correcta
+        ser = PagoCreateSerializer(data=data, context={"request": request})
+        ser.is_valid(raise_exception=True)
+        pago = ser.save()  # aplica automáticamente
+        return Response(PagoSerializer(pago).data, status=status.HTTP_201_CREATED)
+
+    # ---------- anular cuota ----------
+    @action(detail=True, methods=["post"], url_path="anular")
+    def anular_cuota(self, request, pk=None):
+        cuota = self.get_object()
+        if cuota.pagado > 0:
+            return Response({"detail": "No se puede anular una cuota con pagos. Anule los pagos primero."}, status=400)
+        cuota.is_active = False
+        cuota.recalc_estado()
+        cuota.save(update_fields=["is_active", "estado", "updated_at"])
+        return Response(CuotaSerializer(cuota).data, status=200)
+
+class PagoViewSet(viewsets.ModelViewSet):
+    queryset = Pago.objects.select_related("cuota", "creado_por").all()
+    authentication_classes = [TokenAuthentication]
+    permission_classes = [IsAuthenticated]  # agrega tu IsAdmin si aplica
+    filter_backends = [DjangoFilterBackend, OrderingFilter]
+    filterset_fields = ["cuota", "valido", "medio"]
+    ordering = ["-created_at"]
+
+    def get_serializer_class(self):
+        return PagoCreateSerializer if self.action == "create" else PagoSerializer
+
+    def create(self, request, *args, **kwargs):
+        ser_in = self.get_serializer(data=request.data, context={"request": request})
+        ser_in.is_valid(raise_exception=True)
+        pago = ser_in.save()
+        ser_out = PagoSerializer(pago, context={"request": request})
+        return Response(ser_out.data, status=status.HTTP_201_CREATED)

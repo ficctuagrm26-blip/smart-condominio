@@ -9,6 +9,7 @@ import AdminUsers from "./pages/AdminUsers";
 import RolesPage from "./pages/Roles";
 import Permisos from "./pages/Permisos";
 import UnitsPage from "./pages/UnitsPage";
+import CuotasPage from "./pages/CuotasPage";
 export default function App() {
   return (
     <BrowserRouter>
@@ -53,6 +54,14 @@ export default function App() {
             element={
               <RequireRole allow={["ADMIN"]}>
                 <UnitsPage /> {/* 👈 nueva página */}
+              </RequireRole>
+            }
+          />
+          <Route
+            path="admin/cuotas"
+            element={
+              <RequireRole allow={["ADMIN"]}>
+                <CuotasPage /> {/* 👈 nueva página */}
               </RequireRole>
             }
           />

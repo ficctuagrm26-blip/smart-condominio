@@ -2,9 +2,8 @@ from rest_framework import serializers
 from django.contrib.auth import get_user_model, authenticate, password_validation
 from django.db import transaction
 from django.core.exceptions import ObjectDoesNotExist
-from .models import Profile, Rol
+from .models import Profile, Rol, Unidad, Cuota, Pago
 from django.contrib.auth.models import Permission  # 👈 necesario para PermissionBriefSerializer
-from .models import Unidad
 User = get_user_model()
 
 # ---------- util ----------
@@ -254,4 +253,80 @@ class UnidadSerializer(serializers.ModelSerializer):
                 raise serializers.ValidationError(
                     {"numero": "Ya existe una unidad con esa combinación (torre/bloque/número)."}
                 )
+        return attrs
+    
+class CuotaSerializer(serializers.ModelSerializer):
+    saldo = serializers.SerializerMethodField()
+    vencimiento = serializers.DateField(input_formats=["%Y-%m-%d"], format="%Y-%m-%d")
+
+    def get_saldo(self, obj):
+        return obj.saldo
+
+    class Meta:
+        model = Cuota
+        fields = [
+            "id","unidad","periodo","concepto",
+            "monto_base","usa_coeficiente","coeficiente_snapshot",
+            "monto_calculado","descuento_aplicado","mora_aplicada",
+            "total_a_pagar","pagado","saldo",
+            "vencimiento","estado","is_active",
+            "created_at","updated_at",
+        ]
+        read_only_fields = ["monto_calculado","total_a_pagar","pagado","estado","created_at","updated_at"]
+
+# ---- PAGOS ----
+def value_gt(a, b):
+    from decimal import Decimal
+    return Decimal(a) > Decimal(b)
+
+# Entrada (POST)
+class PagoCreateSerializer(serializers.Serializer):
+    cuota = serializers.PrimaryKeyRelatedField(queryset=Cuota.objects.all())
+    monto = serializers.DecimalField(max_digits=10, decimal_places=2)
+    medio = serializers.ChoiceField(choices=Pago.MEDIO_CHOICES, default="EFECTIVO")
+    referencia = serializers.CharField(required=False, allow_blank=True)
+
+    def validate_monto(self, value):
+        if value <= 0:
+            raise serializers.ValidationError("El monto debe ser > 0.")
+        return value
+
+    def create(self, validated_data):
+        cuota = validated_data["cuota"]
+        if value_gt(validated_data["monto"], cuota.saldo):
+            raise serializers.ValidationError({"monto": "El monto excede el saldo pendiente."})
+
+        request = self.context.get("request")
+        pago = Pago.objects.create(
+            cuota=cuota,
+            monto=validated_data["monto"],
+            medio=validated_data.get("medio", "EFECTIVO"),
+            referencia=validated_data.get("referencia", ""),
+            creado_por=request.user if request and request.user.is_authenticated else None,
+        )
+        pago.aplicar()  # actualiza pagado/estado de la cuota
+        return pago
+
+# Salida (GET/response de create)
+class PagoSerializer(serializers.ModelSerializer):
+    class Meta:
+        model = Pago
+        fields = ["id","cuota","fecha_pago","monto","medio","referencia","valido","creado_por","created_at"]
+        read_only_fields = ["fecha_pago","valido","creado_por","created_at"]
+        
+# GENERAR CUOTAS
+class GenerarCuotasSerializer(serializers.Serializer):
+    # Si tu campo periodo en Cuota es CharField tipo "YYYY-MM":
+    periodo = serializers.RegexField(regex=r"^\d{4}-(0[1-9]|1[0-2])$", max_length=7)
+    # Si en tu modelo es DateField, cambia a:
+    # periodo = serializers.DateField(input_formats=["%Y-%m-%d"])  # usar "YYYY-MM-01"
+
+    concepto = serializers.CharField(max_length=100)
+    monto_base = serializers.DecimalField(max_digits=12, decimal_places=2)
+    usa_coeficiente = serializers.BooleanField()
+    vencimiento = serializers.DateField(input_formats=["%Y-%m-%d"])
+
+    # Opcional: validaciones adicionales
+    def validate(self, attrs):
+        # aquí puedes chequear rangos, etc.
         return attrs

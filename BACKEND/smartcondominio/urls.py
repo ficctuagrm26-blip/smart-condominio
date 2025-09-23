@@ -1,6 +1,6 @@
 
 from django.urls import path
-from .views_api import RegisterView, me, AdminUserViewSet, me_update, change_password, RolViewSet, PermissionViewSet, UnidadViewSet
+from .views_api import RegisterView, me, AdminUserViewSet, me_update, change_password, RolViewSet, PermissionViewSet, UnidadViewSet, CuotaViewSet, PagoViewSet
 from rest_framework.routers import DefaultRouter
 from rest_framework.authtoken.views import obtain_auth_token
 
@@ -10,6 +10,8 @@ router.register(r'admin/users', AdminUserViewSet, basename='admin-users')
 router.register(r'roles',RolViewSet, basename='roles')
 router.register(r'permissions', PermissionViewSet, basename='permissions')
 router.register(r'unidades', UnidadViewSet, basename='unidades')
+router.register(r'cuotas', CuotaViewSet, basename = 'cuotas')
+router.register(r'pagos',  PagoViewSet,  basename='pagos')
 
 
 urlpatterns = [
