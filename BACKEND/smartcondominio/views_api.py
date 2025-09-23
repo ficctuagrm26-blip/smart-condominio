@@ -1,17 +1,20 @@
 from django.contrib.auth import get_user_model
+from rest_framework.views import APIView
 from django.db import IntegrityError
-from django.db.models import Q
+from django.db.models import Q, Sum, F, DecimalField, ExpressionWrapper
 from django.db.models.deletion import ProtectedError, RestrictedError
 from rest_framework import status, permissions, viewsets, filters
 from rest_framework.authentication import TokenAuthentication
 from rest_framework.decorators import api_view, permission_classes, authentication_classes, action
 from rest_framework.permissions import IsAuthenticated
 from rest_framework.response import Response
-
+from django.http import HttpResponse
+import csv
 from django.contrib.auth.models import Permission
 from django_filters.rest_framework import DjangoFilterBackend
 from rest_framework.filters import SearchFilter, OrderingFilter
-from .models import Rol, Profile, Unidad, Cuota, Pago
+from datetime import date
+from .models import Rol, Profile, Unidad, Cuota, Pago, Infraccion
 from .permissions import IsAdmin
 from .serializers import (
     RegisterSerializer,
@@ -20,7 +23,7 @@ from .serializers import (
     MeUpdateSerializer,
     ChangePasswordSerializer,
     RolSimpleSerializer,
-    PermissionBriefSerializer, UnidadSerializer, CuotaSerializer, PagoCreateSerializer, PagoSerializer,GenerarCuotasSerializer   # 👈 lo importamos (definido en serializers.py)
+    PermissionBriefSerializer, UnidadSerializer, CuotaSerializer, PagoCreateSerializer, PagoSerializer,GenerarCuotasSerializer, InfraccionSerializer,PagoEstadoCuentaSerializer,UnidadBriefECSerializer   # 👈 lo importamos (definido en serializers.py)
 )
 
 User = get_user_model()
@@ -291,3 +294,138 @@ class PagoViewSet(viewsets.ModelViewSet):
         pago = ser_in.save()
         ser_out = PagoSerializer(pago, context={"request": request})
         return Response(ser_out.data, status=status.HTTP_201_CREATED)
+    
+class InfraccionViewSet(viewsets.ModelViewSet):
+    queryset = Infraccion.objects.select_related("unidad", "residente", "creado_por").all()
+    serializer_class = InfraccionSerializer
+    authentication_classes = [TokenAuthentication]
+    permission_classes = [IsAuthenticated]
+
+    filter_backends = [DjangoFilterBackend, SearchFilter, OrderingFilter]
+    filterset_fields = ["unidad", "residente", "estado", "tipo", "is_active", "fecha"]
+    search_fields = ["descripcion", "unidad__torre", "unidad__bloque", "unidad__numero"]
+    ordering_fields = ["fecha", "monto", "updated_at"]
+    ordering = ["-fecha"]
+
+    def perform_create(self, serializer):
+        serializer.save(creado_por=self.request.user)
+
+    @action(detail=True, methods=["post"])
+    def resolver(self, request, pk=None):
+        obj = self.get_object()
+        obj.estado = "RESUELTA"
+        obj.save(update_fields=["estado", "updated_at"])
+        return Response(self.get_serializer(obj).data)
+
+    @action(detail=True, methods=["post"])
+    def anular(self, request, pk=None):
+        obj = self.get_object()
+        obj.estado = "ANULADA"
+        obj.is_active = False
+        obj.save(update_fields=["estado", "is_active", "updated_at"])
+        return Response(self.get_serializer(obj).data)
+
+
+class EstadoCuentaView(APIView):
+    authentication_classes = [TokenAuthentication]
+    permission_classes = [IsAuthenticated]
+
+    def get_user_unidades(self, user):
+        # Unidades donde es propietario o residente
+        return Unidad.objects.filter(Q(propietario=user) | Q(residente=user)).order_by("torre", "bloque", "numero")
+
+    def get(self, request):
+        user = request.user
+        unidades = self.get_user_unidades(user)
+        if not unidades.exists():
+            return Response({"detail": "No tiene unidades asociadas."}, status=404)
+
+        # unidad elegida (si no, la primera)
+        unidad_id = request.query_params.get("unidad")
+        if unidad_id:
+            unidad = unidades.filter(id=unidad_id).first()
+            if not unidad:
+                return Response({"detail": "Unidad inválida para este usuario."}, status=403)
+        else:
+            unidad = unidades.first()
+
+        # Cuotas de esa unidad (puedes ajustar límites si quieres)
+        cuotas_qs = Cuota.objects.select_related("unidad").filter(unidad=unidad).order_by("-vencimiento", "-updated_at")
+
+        # Pagos de esa unidad
+        pagos_qs = Pago.objects.select_related("cuota", "creado_por", "cuota__unidad").filter(cuota__unidad=unidad).order_by("-created_at")
+
+        # Resumen
+        saldo_expr = ExpressionWrapper(F("total_a_pagar") - F("pagado"), output_field=DecimalField(max_digits=12, decimal_places=2))
+        agg = cuotas_qs.aggregate(
+            saldo_pendiente=Sum(saldo_expr),
+            total_pagado=Sum("pagado"),
+            total_cobrado=Sum("total_a_pagar"),
+        )
+        cuotas_pendientes = cuotas_qs.filter(estado__in=["PENDIENTE", "VENCIDO", "PARCIAL"]).count()
+        ultimo_pago = pagos_qs.first()
+
+        data = {
+            "unidades": UnidadBriefECSerializer(unidades, many=True).data,
+            "unidad": UnidadBriefECSerializer(unidad).data,
+            "resumen": {
+                "saldo_pendiente": str(agg.get("saldo_pendiente") or 0),
+                "total_pagado_historico": str(agg.get("total_pagado") or 0),
+                "total_cobrado_historico": str(agg.get("total_cobrado") or 0),
+                "cuotas_pendientes": cuotas_pendientes,
+                "ultimo_pago": PagoEstadoCuentaSerializer(ultimo_pago).data if ultimo_pago else None,
+                "fecha_corte": date.today().isoformat(),
+            },
+            "cuotas": CuotaSerializer(cuotas_qs, many=True).data,
+            "pagos": PagoEstadoCuentaSerializer(pagos_qs, many=True).data,
+        }
+        return Response(data, status=200)
+
+
+class EstadoCuentaExportCSV(APIView):
+    authentication_classes = [TokenAuthentication]
+    permission_classes = [IsAuthenticated]
+
+    def get_user_unidades(self, user):
+        return Unidad.objects.filter(Q(propietario=user) | Q(residente=user)).order_by("torre", "bloque", "numero")
+
+    def get(self, request):
+        user = request.user
+        unidades = self.get_user_unidades(user)
+        if not unidades.exists():
+            return Response({"detail": "No tiene unidades asociadas."}, status=404)
+
+        unidad_id = request.query_params.get("unidad")
+        if unidad_id:
+            unidad = unidades.filter(id=unidad_id).first()
+            if not unidad:
+                return Response({"detail": "Unidad inválida para este usuario."}, status=403)
+        else:
+            unidad = unidades.first()
+
+        cuotas_qs = Cuota.objects.select_related("unidad").filter(unidad=unidad).order_by("-vencimiento", "-updated_at")
+        pagos_qs = Pago.objects.select_related("cuota", "cuota__unidad").filter(cuota__unidad=unidad).order_by("-created_at")
+
+        # Generar CSV
+        resp = HttpResponse(content_type="text/csv")
+        filename = f"estado_cuenta_unidad_{unidad.id}_{date.today().isoformat()}.csv"
+        resp["Content-Disposition"] = f'attachment; filename="{filename}"'
+        writer = csv.writer(resp)
+
+        writer.writerow([f"Estado de cuenta - Unidad {unidad.torre}-{unidad.bloque}-{unidad.numero} (ID {unidad.id})"])
+        writer.writerow(["Fecha de corte", date.today().isoformat()])
+        writer.writerow([])
+
+        writer.writerow(["CUOTAS"])
+        writer.writerow(["ID", "Periodo", "Concepto", "Vencimiento", "Total", "Pagado", "Saldo", "Estado"])
+        for c in cuotas_qs:
+            saldo = (c.total_a_pagar or 0) - (c.pagado or 0)
+            writer.writerow([c.id, c.periodo, c.concepto, c.vencimiento, c.total_a_pagar, c.pagado, saldo, c.estado])
+
+        writer.writerow([])
+        writer.writerow(["PAGOS"])
+        writer.writerow(["ID", "Fecha pago", "Monto", "Medio", "Referencia", "Cuota (Periodo)", "Concepto"])
+        for p in pagos_qs:
+            writer.writerow([p.id, p.fecha_pago, p.monto, p.medio, p.referencia, getattr(p.cuota, "periodo", ""), getattr(p.cuota, "concepto", "")])
+
+        return resp

@@ -6,7 +6,7 @@ from django.dispatch import receiver
 from django.core.validators import MinValueValidator, MaxValueValidator
 from decimal import Decimal
 from datetime import date
-
+from django.utils import timezone
 #CREAMOS UNA TABLA DE TIPO ROL 
 class Rol(models.Model):
     code = models.CharField(max_length=30, unique=True)   # Ej: ADMIN
@@ -217,3 +217,41 @@ class Pago(models.Model):
             self.cuota.pagado = Decimal("0.00")
         self.cuota.recalc_estado()
         self.cuota.save(update_fields=["pagado", "estado", "updated_at"])
+        
+#GESTIONAR INFRACCIONES
+
+class Infraccion(models.Model):
+    TIPO_CHOICES = [
+        ("RUIDO", "Ruido"),
+        ("MASCOTA", "Mascota"),
+        ("ESTACIONAMIENTO", "Estacionamiento indebido"),
+        ("DANOS", "Daños"),
+        ("OTRA", "Otra"),
+    ]
+    ESTADO_CHOICES = [
+        ("PENDIENTE", "Pendiente"),
+        ("RESUELTA", "Resuelta"),
+        ("ANULADA", "Anulada"),
+    ]
+
+    unidad = models.ForeignKey("smartcondominio.Unidad", on_delete=models.PROTECT, related_name="infracciones")
+    # 🔧 antes: ForeignKey("smartcondominio.Residente") -> no existe
+    residente = models.ForeignKey(User, null=True, blank=True, on_delete=models.SET_NULL, related_name="infracciones")
+
+    fecha = models.DateField(default=timezone.now)
+    tipo = models.CharField(max_length=20, choices=TIPO_CHOICES)
+    descripcion = models.TextField(blank=True)
+    monto = models.DecimalField(max_digits=12, decimal_places=2, default=0)
+    evidencia_url = models.URLField(blank=True)
+    estado = models.CharField(max_length=10, choices=ESTADO_CHOICES, default="PENDIENTE")
+
+    is_active = models.BooleanField(default=True)
+    creado_por = models.ForeignKey(User, null=True, on_delete=models.SET_NULL, related_name="infracciones_creadas")
+    created_at = models.DateTimeField(auto_now_add=True)
+    updated_at = models.DateTimeField(auto_now=True)
+
+    class Meta:
+        ordering = ["-fecha"]
+
+    def __str__(self):
+        return f"{self.unidad_id} • {self.tipo} • {self.estado}"

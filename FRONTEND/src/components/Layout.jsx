@@ -30,6 +30,9 @@ export default function Layout() {
           <NavLink to="/me" className={({isActive}) => isActive ? "nav__link active" : "nav__link"}>
             Mi Perfil
           </NavLink>
+          <NavLink to="/estado-cuenta" className={({isActive}) => isActive ? "nav__link active" : "nav__link"}>
+            Consultar estado de Cuenta
+          </NavLink>
 
           {/* MÓDULOS: solo muestra “Gestión” si es ADMIN */}
           {role === "ADMIN" && (
@@ -68,6 +71,9 @@ export default function Layout() {
                 </NavLink>
                 <NavLink to="/admin/cuotas" className={({isActive}) => isActive ? "nav__sublink active" : "nav__sublink"}>
                   Gestionar Cuotas
+                </NavLink>
+                 <NavLink to="/admin/infracciones" className={({isActive}) => isActive ? "nav__sublink active" : "nav__sublink"}>
+                  Gestionar Infracciones
                 </NavLink>
               </div>
             </div>
