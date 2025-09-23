@@ -1,8 +1,11 @@
 from django.db import models
+from django.db.models import Q
 from django.contrib.auth.models import User, Permission
 from django.db.models.signals import post_save
 from django.dispatch import receiver
 from django.core.validators import MinValueValidator, MaxValueValidator
+from decimal import Decimal
+from datetime import date
 
 #CREAMOS UNA TABLA DE TIPO ROL 
 class Rol(models.Model):
@@ -91,3 +94,126 @@ class Unidad(models.Model):
     def __str__(self):
         b = f"-{self.bloque}" if self.bloque else ""
         return f"{self.torre}{b}-{self.numero}"
+    
+class Cuota(models.Model):
+    ESTADO_CHOICES = [
+        ("PENDIENTE", "Pendiente"),
+        ("PARCIAL", "Parcial"),
+        ("PAGADA", "Pagada"),
+        ("VENCIDA", "Vencida"),
+        ("ANULADA", "Anulada"),
+    ]
+
+    unidad = models.ForeignKey("smartcondominio.Unidad", on_delete=models.PROTECT, related_name="cuotas")
+    periodo = models.CharField(max_length=7)  # "YYYY-MM"
+    concepto = models.CharField(max_length=50, default="GASTO_COMUN")
+
+    # Montos
+    monto_base = models.DecimalField(max_digits=10, decimal_places=2, default=Decimal("0.00"))
+    usa_coeficiente = models.BooleanField(default=True)
+    coeficiente_snapshot = models.DecimalField(max_digits=5, decimal_places=2, default=Decimal("0.00"))  # % de la unidad en el momento
+    monto_calculado = models.DecimalField(max_digits=10, decimal_places=2, default=Decimal("0.00"))
+    descuento_aplicado = models.DecimalField(max_digits=10, decimal_places=2, default=Decimal("0.00"))
+    mora_aplicada = models.DecimalField(max_digits=10, decimal_places=2, default=Decimal("0.00"))
+    total_a_pagar = models.DecimalField(max_digits=10, decimal_places=2, default=Decimal("0.00"))
+    pagado = models.DecimalField(max_digits=10, decimal_places=2, default=Decimal("0.00"))
+
+    vencimiento = models.DateField()
+    estado = models.CharField(max_length=10, choices=ESTADO_CHOICES, default="PENDIENTE")
+    is_active = models.BooleanField(default=True)
+
+    created_at = models.DateTimeField(auto_now_add=True)
+    updated_at = models.DateTimeField(auto_now=True)
+
+    class Meta:
+        constraints = [
+            models.UniqueConstraint(
+                fields=["unidad", "periodo", "concepto"],
+                condition=Q(is_active=True),
+                name="uniq_cuota_unidad_periodo_concepto_activa",
+            )
+        ]
+        indexes = [
+            models.Index(fields=["periodo", "concepto"]),
+        ]
+        ordering = ["-periodo", "unidad_id"]
+
+    def __str__(self):
+        return f"{self.unidad} · {self.periodo} · {self.concepto}"
+
+    @property
+    def saldo(self) -> Decimal:
+        s = Decimal(self.total_a_pagar) - Decimal(self.pagado)
+        return s if s > 0 else Decimal("0.00")
+
+    def recalc_importes(self):
+        """Recalcula monto_calculado/total según base + coeficiente + descuentos/moras (simples)"""
+        base = Decimal(self.monto_base or 0)
+        coef = Decimal(self.coeficiente_snapshot or 0)
+        calculado = base * (coef / Decimal("100")) if self.usa_coeficiente else base
+        self.monto_calculado = (calculado.quantize(Decimal("0.01")))
+        total = self.monto_calculado - Decimal(self.descuento_aplicado or 0) + Decimal(self.mora_aplicada or 0)
+        self.total_a_pagar = (total if total > 0 else Decimal("0.00")).quantize(Decimal("0.01"))
+
+    def recalc_estado(self, today=None):
+        today = today or date.today()
+        if not self.is_active:
+            self.estado = "ANULADA"
+            return
+        if self.pagado >= self.total_a_pagar and self.total_a_pagar > 0:
+            self.estado = "PAGADA"
+        elif self.pagado > 0 and self.pagado < self.total_a_pagar:
+            self.estado = "PARCIAL"
+        else:
+            # sin pagos
+            if today > self.vencimiento and self.total_a_pagar > 0:
+                self.estado = "VENCIDA"
+            else:
+                self.estado = "PENDIENTE"
+
+    def apply_simple_mora(self, mora_fija=Decimal("0.00")):
+        """Ejemplo simple de mora fija si está vencida y tiene saldo."""
+        if date.today() > self.vencimiento and self.saldo > 0 and mora_fija > 0:
+            self.mora_aplicada = (Decimal(self.mora_aplicada) + Decimal(mora_fija)).quantize(Decimal("0.01"))
+            self.recalc_importes()
+            self.recalc_estado()
+
+class Pago(models.Model):
+    MEDIO_CHOICES = [
+        ("EFECTIVO", "Efectivo"),
+        ("TRANSFERENCIA", "Transferencia"),
+        ("TARJETA", "Tarjeta"),
+        ("OTRO", "Otro"),
+    ]
+    cuota = models.ForeignKey(Cuota, on_delete=models.PROTECT, related_name="pagos")
+    fecha_pago = models.DateField(auto_now_add=True)
+    monto = models.DecimalField(max_digits=10, decimal_places=2)
+    medio = models.CharField(max_length=20, choices=MEDIO_CHOICES, default="EFECTIVO")
+    referencia = models.CharField(max_length=100, blank=True)
+    valido = models.BooleanField(default=True)
+    creado_por = models.ForeignKey(User, on_delete=models.SET_NULL, null=True, blank=True, related_name="pagos_cargados")
+    created_at = models.DateTimeField(auto_now_add=True)
+
+    class Meta:
+        ordering = ["-created_at"]
+
+    def __str__(self):
+        return f"Pago {self.id} · Cuota {self.cuota_id} · {self.monto}"
+
+    def aplicar(self):
+        if not self.valido:
+            return
+        self.cuota.pagado = (Decimal(self.cuota.pagado) + Decimal(self.monto)).quantize(Decimal("0.01"))
+        self.cuota.recalc_estado()
+        self.cuota.save(update_fields=["pagado", "estado", "updated_at"])
+
+    def revertir(self):
+        if not self.valido:
+            return
+        self.valido = False
+        self.save(update_fields=["valido"])
+        self.cuota.pagado = (Decimal(self.cuota.pagado) - Decimal(self.monto))
+        if self.cuota.pagado < 0:
+            self.cuota.pagado = Decimal("0.00")
+        self.cuota.recalc_estado()
+        self.cuota.save(update_fields=["pagado", "estado", "updated_at"])
