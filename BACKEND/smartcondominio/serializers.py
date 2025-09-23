@@ -2,7 +2,7 @@ from rest_framework import serializers
 from django.contrib.auth import get_user_model, authenticate, password_validation
 from django.db import transaction
 from django.core.exceptions import ObjectDoesNotExist
-from .models import Profile, Rol, Unidad, Cuota, Pago
+from .models import Profile, Rol, Unidad, Cuota, Pago, Infraccion
 from django.contrib.auth.models import Permission  # 👈 necesario para PermissionBriefSerializer
 User = get_user_model()
 
@@ -330,3 +330,76 @@ class GenerarCuotasSerializer(serializers.Serializer):
     def validate(self, attrs):
         # aquí puedes chequear rangos, etc.
         return attrs
+    
+# Mini serializers (coherentes con tu estilo actual)
+class UserBriefSerializer(serializers.ModelSerializer):
+    class Meta:
+        model = User
+        fields = ["id", "username"]
+
+class UnidadMiniForInfSerializer(serializers.ModelSerializer):
+    class Meta:
+        model = Unidad
+        fields = ["id", "torre", "bloque", "numero"]
+
+class InfraccionSerializer(serializers.ModelSerializer):
+    # lectura
+    unidad = UnidadMiniForInfSerializer(read_only=True)
+    creado_por = UserBriefSerializer(read_only=True)
+
+    # escritura
+    unidad_id = serializers.PrimaryKeyRelatedField(source="unidad", queryset=Unidad.objects.all(), write_only=True)
+    # 🔧 usar User como queryset para residente_id
+    residente_id = serializers.PrimaryKeyRelatedField(
+        source="residente",
+        queryset=User.objects.all(),
+        allow_null=True,
+        required=False,
+        write_only=True,
+    )
+
+    fecha = serializers.DateField(input_formats=["%Y-%m-%d"], format="%Y-%m-%d")
+
+    class Meta:
+        model = Infraccion
+        fields = [
+            "id",
+            "unidad", "unidad_id", "residente_id",
+            "fecha", "tipo", "descripcion", "monto", "evidencia_url",
+            "estado", "is_active",
+            "creado_por", "created_at", "updated_at",
+        ]
+        read_only_fields = ["creado_por", "created_at", "updated_at"]
+
+#ESTADO DE CUENTA RESIDENTE
+class UnidadBriefECSerializer(serializers.ModelSerializer):
+    class Meta:
+        model = Unidad
+        fields = ["id", "torre", "bloque", "numero"]
+
+class PagoEstadoCuentaSerializer(serializers.ModelSerializer):
+    cuota_periodo = serializers.SerializerMethodField()
+    cuota_concepto = serializers.SerializerMethodField()
+    unidad_id = serializers.SerializerMethodField()
+
+    class Meta:
+        model = Pago
+        fields = ["id", "fecha_pago", "monto", "medio", "referencia", "cuota_periodo", "cuota_concepto", "unidad_id", "created_at"]
+
+    def get_cuota_periodo(self, obj):
+        try:
+            return obj.cuota.periodo
+        except Exception:
+            return None
+
+    def get_cuota_concepto(self, obj):
+        try:
+            return obj.cuota.concepto
+        except Exception:
+            return None
+
+    def get_unidad_id(self, obj):
+        try:
+            return obj.cuota.unidad_id
+        except Exception:
+            return None
