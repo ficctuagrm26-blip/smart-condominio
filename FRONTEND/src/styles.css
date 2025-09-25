@@ -1,44 +1,454 @@
-:root { color-scheme: dark; }
-html, body, #root { height: 100%; margin: 0; }
+/* === Base / Theme (dark) === */
+:root {
+  color-scheme: dark;
 
-
-.center { min-height: 100%; display: grid; place-items: center; }
-.card { width: 320px; background: #111; padding: 20px; border-radius: 14px; box-shadow: 0 10px 30px rgba(0,0,0,.35); }
-.card h2 { margin-top: 0; }
-.card label { display:block; margin-top: 10px; font-size: 14px; color: #ccc; }
-.card input { width: 100%; padding: 10px; margin-top: 6px; border-radius: 8px; border: 1px solid #333; background: #1a1a1a; color: #eee; }
-.card button { margin-top: 16px; width: 100%; padding: 10px; border-radius: 8px; border: none; background: #4f46e5; color:#fff; font-weight: 600; cursor:pointer; }
-.card button:hover { filter: brightness(1.05); }
-.error { color: #ef4444; font-size: 14px; }
-.muted { color: #aaa; font-size: 12px; margin-top: 10px; }
-
-
-.layout { display: grid; grid-template-columns: 240px 1fr; min-height: 100%; background: #0b0d12; color: #e5e7eb; }
-.sidebar { padding: 20px; border-right: 1px solid #1f2937; display:flex; flex-direction: column; gap: 8px; }
-.sidebar a { color: #cbd5e1; text-decoration: none; margin: 4px 0; }
-.sidebar a:hover { color: #fff; }
-.spacer { flex: 1; }
-.userbox { display:flex; flex-direction: column; gap: 8px; }
-.content { padding: 24px; }
-
-/* enlaces base */
-.nav__link, .nav__sublink {
-  display:block; padding:8px 10px; margin:2px 0;
-  color:#cbd5e1; text-decoration:none; border-radius:8px;
+  --primary: #4f46e5; /* indigo-600 */
+  --bg: #0b1220;
+  --card: #111827;
+  --text: #e5e7eb;
+  --muted: #94a3b8;
+  --border: #1f2937;
+  --container: 1180px; /* ancho máx del contenido */
 }
-.nav__link:hover, .nav__sublink:hover { color:#fff; background:#111827; }
-.active { color:#fff; background:#1f2937; }
 
-/* grupo colapsable */
-.nav-group { margin-top: 10px; }
+html,
+body,
+#root {
+  height: 100%;
+  margin: 0;
+}
+body {
+  background: var(--bg);
+  color: var(--text);
+  font-family: system-ui, -apple-system, Segoe UI, Roboto, Ubuntu, Cantarell,
+    "Helvetica Neue", Arial;
+}
+
+/* === Layout general === */
+.layout {
+  display: grid;
+  grid-template-columns: 260px 1fr; /* sidebar + contenido */
+  min-height: 100%;
+}
+.sidebar {
+  padding: 20px;
+  border-right: 1px solid var(--border);
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+.content {
+  width: 100%;
+  max-width: var(--container);
+  margin: 0 auto;
+  padding: 24px 16px;
+}
+
+/* === Navegación lateral === */
+.sidebar a {
+  color: #cbd5e1;
+  text-decoration: none;
+}
+.sidebar a:hover {
+  color: #fff;
+}
+.nav__link,
+.nav__sublink {
+  display: block;
+  padding: 8px 10px;
+  margin: 2px 0;
+  color: #cbd5e1;
+  border-radius: 8px;
+  text-decoration: none;
+}
+.nav__link:hover,
+.nav__sublink:hover {
+  color: #fff;
+  background: #111827;
+}
+.active {
+  color: #fff;
+  background: #1f2937;
+}
+.nav-group {
+  margin-top: 10px;
+}
 .nav-group__header {
-  width:100%; display:flex; align-items:center; justify-content:space-between;
-  padding:8px 10px; border:none; background:transparent; color:#cbd5e1; cursor:pointer; border-radius:8px;
+  width: 100%;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 8px 10px;
+  border: none;
+  background: transparent;
+  color: #cbd5e1;
+  cursor: pointer;
+  border-radius: 8px;
 }
-.nav-group__header:hover { color:#fff; background:#111827; }
-.chev { transition: transform .15s ease; }
-.chev.open { transform: rotate(90deg); }
+.nav-group__header:hover {
+  color: #fff;
+  background: #111827;
+}
+.chev {
+  transition: transform 0.15s ease;
+}
+.chev.open {
+  transform: rotate(90deg);
+}
+.nav-group__items {
+  display: none;
+  padding-left: 8px;
+  margin-top: 4px;
+}
+.nav-group__items.open {
+  display: block;
+}
+.nav__sublink {
+  padding-left: 14px;
+}
+.spacer {
+  flex: 1;
+}
+.userbox {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+.badge {
+  background: #1f2937;
+  padding: 2px 6px;
+  border-radius: 6px;
+  font-size: 12px;
+}
 
-.nav-group__items { display:none; padding-left:8px; margin-top:4px; }
-.nav-group__items.open { display:block; }
-.nav__sublink { padding-left:14px; }
+/* === Cards === */
+.card {
+  background: var(--card);
+  border: 1px solid var(--border);
+  border-radius: 12px;
+  padding: 12px;
+  width: 100%;
+  box-shadow: 0 10px 24px rgba(0, 0, 0, 0.2);
+}
+
+/* === Login (card específica solo para Signin) === */
+.center {
+  min-height: 100%;
+  display: grid;
+  place-items: center;
+}
+.login-card {
+  width: 360px;
+  background: #111;
+  padding: 20px;
+  border-radius: 14px;
+  box-shadow: 0 10px 30px rgba(0, 0, 0, 0.35);
+}
+.login-card h2 {
+  margin: 0 0 8px;
+}
+.login-card label {
+  display: block;
+  margin-top: 10px;
+  font-size: 14px;
+  color: #ccc;
+}
+.login-card input {
+  width: 100%;
+  padding: 10px;
+  margin-top: 6px;
+  border-radius: 8px;
+  border: 1px solid #333;
+  background: #1a1a1a;
+  color: #eee;
+}
+.login-card button {
+  margin-top: 16px;
+  width: 100%;
+  padding: 10px;
+  border-radius: 8px;
+  border: none;
+  background: var(--primary);
+  color: #fff;
+  font-weight: 600;
+  cursor: pointer;
+}
+.login-card button:hover {
+  filter: brightness(1.05);
+}
+
+/* Utilidades */
+.error {
+  color: #ef4444;
+  font-size: 14px;
+}
+.muted {
+  color: var(--muted);
+  font-size: 12px;
+}
+
+/* === Inputs & labels (páginas internas) === */
+.au-label {
+  font-size: 12px;
+  color: var(--muted);
+}
+.au-input {
+  height: 36px;
+  padding: 6px 10px;
+  border-radius: 8px;
+  background: #0f172a;
+  border: 1px solid var(--border);
+  color: var(--text);
+}
+.au-checkbox {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  color: var(--text);
+}
+
+/* === Botones === */
+.au-button {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+  padding: 8px 14px;
+  border-radius: 8px;
+  font-weight: 600;
+  line-height: 1;
+  cursor: pointer;
+  background: var(--primary);
+  color: #fff;
+  border: 1px solid transparent;
+}
+.au-button:hover {
+  filter: brightness(1.05);
+}
+.au-button--ghost {
+  background: transparent;
+  border-color: var(--primary);
+  color: var(--primary);
+}
+.au-button.is-active {
+  border: 1px solid var(--primary);
+}
+
+/* === Toolbars (buscadores, acciones) === */
+.au-toolbar {
+  padding: 12px;
+}
+.au-toolbar__form {
+  display: grid;
+  grid-template-columns: minmax(320px, 1fr) repeat(4, auto);
+  gap: 12px;
+  align-items: end;
+  width: 100%;
+}
+.au-toolbar__spacer {
+  flex: 1 1 auto;
+}
+.au-toolbar .au-button {
+  width: auto !important;
+} /* nunca full width */
+.au-field {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  min-width: 280px;
+}
+
+/* === Grids auxiliares === */
+.au-grid-3 {
+  display: grid;
+  gap: 12px;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+}
+@media (max-width: 900px) {
+  .au-grid-3 {
+    grid-template-columns: 1fr;
+  }
+}
+
+/* === Tablas === */
+.au-table {
+  width: 100%;
+  border-collapse: separate;
+  border-spacing: 0;
+}
+.au-table thead th {
+  text-align: left;
+  padding: 10px 12px;
+  background: #0f172a;
+  color: #cbd5e1;
+  position: sticky;
+  top: 0;
+  z-index: 1;
+}
+.au-table tbody td {
+  padding: 10px 12px;
+  border-top: 1px solid var(--border);
+  color: var(--text);
+}
+.au-table tbody tr:hover td {
+  background: #0f1626;
+}
+.au-table tfoot td {
+  padding: 10px 12px;
+}
+
+/* === Responsive === */
+@media (max-width: 900px) {
+  .layout {
+    grid-template-columns: 1fr;
+  } /* sidebar podría ir colapsable si luego lo convertimos */
+  .au-toolbar__form {
+    grid-template-columns: 1fr;
+  }
+  .au-toolbar .au-button {
+    width: 100% !important;
+  }
+}
+
+/* Tipografía */
+h2 {
+  margin: 0 0 12px;
+  font-weight: 700;
+}
+/* Espaciado entre botones dentro de celdas de tabla */
+.au-table td .au-button {
+  margin-right: 8px;
+}
+.au-table td .au-button:last-child {
+  margin-right: 0;
+}
+/* chips pequeñas para estado/prioridad */
+.tag {
+  display: inline-block;
+  padding: 2px 8px;
+  border-radius: 999px;
+  font-size: 12px;
+  border: 1px solid var(--border);
+  background: #0f172a;
+}
+.tag--state-nueva {
+  border-color: #94a3b8;
+  color: #94a3b8;
+}
+.tag--state-asignada {
+  border-color: #60a5fa;
+  color: #93c5fd;
+}
+.tag--state-en_progreso {
+  border-color: #34d399;
+  color: #6ee7b7;
+}
+.tag--state-bloqueada {
+  border-color: #f59e0b;
+  color: #fbbf24;
+}
+.tag--state-completada {
+  border-color: #22c55e;
+  color: #86efac;
+}
+.tag--state-cancelada {
+  border-color: #ef4444;
+  color: #fca5a5;
+}
+
+.tag--prio-baja {
+  border-color: #94a3b8;
+  color: #94a3b8;
+}
+.tag--prio-media {
+  border-color: #60a5fa;
+  color: #93c5fd;
+}
+.tag--prio-alta {
+  border-color: #f59e0b;
+  color: #fbbf24;
+}
+.tag--prio-urgente {
+  border-color: #ef4444;
+  color: #fca5a5;
+}
+
+/* acciones en tablas con espacio y wrap */
+.au-actions {
+  display: flex;
+  gap: 8px;
+  flex-wrap: wrap;
+}
+.au-actions .au-button {
+  margin: 0;
+}
+
+/* grid utilitario para modales simples */
+.au-grid-2 {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 12px;
+}
+@media (max-width: 900px) {
+  .au-grid-2 {
+    grid-template-columns: 1fr;
+  }
+}
+/* ===== Utilidades para Roles & Permisos ===== */
+.au-chip {
+  font-size: 12px;
+  padding: 2px 8px;
+  border: 1px solid var(--border);
+  border-radius: 999px;
+  color: var(--text);
+  opacity: 0.9;
+}
+
+/* Modal (genérico, respeta tu tema) */
+.au-modal {
+  position: fixed;
+  inset: 0;
+  display: grid;
+  place-items: center;
+  z-index: 100;
+}
+.au-modal__backdrop {
+  position: absolute;
+  inset: 0;
+  background: rgba(0, 0, 0, 0.55);
+}
+.au-modal__panel {
+  position: relative;
+  width: min(1100px, 92vw);
+  max-height: 86vh;
+  overflow: auto;
+}
+.au-modal__header,
+.au-modal__footer {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  margin-bottom: 12px;
+}
+
+/* Enlaces tipo acción dentro del modal */
+.au-link {
+  background: none;
+  border: 0;
+  color: #93c5fd;
+  cursor: pointer;
+  padding: 0;
+  text-decoration: underline;
+}
+.nav__package {
+  margin-bottom: 12px;
+}
+.nav__packageTitle {
+  font-size: 12px;
+  font-weight: 700;
+  text-transform: uppercase;
+  color: #9ca3af; /* gris claro */
+  margin: 8px 0;
+  padding-left: 8px;
+}

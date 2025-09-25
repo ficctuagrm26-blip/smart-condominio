@@ -1,0 +1,63 @@
+/* hoja lateral similar a aviso */
+.tarea-overlay {
+  position: fixed;
+  inset: 0;
+  background: rgba(0, 0, 0, 0.45);
+  display: grid;
+  place-items: center;
+  z-index: 50;
+}
+.tarea-sheet {
+  width: min(900px, 92vw);
+  max-height: 90vh;
+  overflow: auto;
+  background: var(--card);
+  border: 1px solid var(--border);
+  border-radius: 14px;
+  padding: 16px;
+  color: var(--text);
+}
+.tarea-head {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  gap: 8px;
+}
+.tarea-title {
+  margin: 0;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+.tarea-meta {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(200px, 1fr));
+  gap: 8px;
+  margin: 12px 0;
+}
+.tarea-body {
+  white-space: pre-wrap;
+  line-height: 1.6;
+  padding: 10px 0;
+  border-top: 1px dashed var(--border);
+  border-bottom: 1px dashed var(--border);
+  margin: 8px 0;
+}
+.tarea-attach h4,
+.tarea-comments h4 {
+  margin: 10px 0 6px;
+}
+.tarea-comment {
+  padding: 8px 0;
+  border-bottom: 1px dashed var(--border);
+}
+.tarea-comment__meta {
+  display: flex;
+  gap: 8px;
+  align-items: center;
+}
+.tarea-comment__new {
+  display: flex;
+  gap: 8px;
+  margin-top: 10px;
+}

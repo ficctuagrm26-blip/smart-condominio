@@ -35,3 +35,10 @@ class IsResident(BasePermission):
 # Alias opcional para compatibilidad con ejemplos anteriores
 IsAdminRole = IsAdmin
 
+# Verifica si el rol asignado al usuario tiene un codename de permiso
+def has_role_permission(user, codename: str) -> bool:
+    role = getattr(getattr(user, "profile", None), "role", None)
+    if not role:
+        return False
+    # Tus roles ya tienen M2M a django.contrib.auth.models.Permission
+    return role.permissions.filter(codename=codename).exists()

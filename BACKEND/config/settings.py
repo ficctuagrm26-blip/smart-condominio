@@ -164,3 +164,8 @@ REST_FRAMEWORK = {
 }
 
 SECURE_PROXY_SSL_HEADER = ('HTTP_X_FORWARDED_PROTO', 'https')
+# === Archivos de usuario (MEDIA) ===
+MEDIA_URL = "/media/"
+MEDIA_ROOT = BASE_DIR / "media"
+
+# WhiteNoise sirve SOLO estáticos, no media. Para prod conviene S3; en dev servimos con Django.

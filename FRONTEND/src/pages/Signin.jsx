@@ -19,8 +19,8 @@ export default function Signin() {
     setError("");
 
     try {
-      await login(username.trim(), password);      // 1) POST -> guarda token
-      const profile = await me();                  // 2) GET perfil con token
+      await login(username.trim(), password); // 1) POST -> guarda token
+      const profile = await me(); // 2) GET perfil con token
       localStorage.setItem("me", JSON.stringify(profile));
       navigate(from || "/dashboard", { replace: true });
     } catch (err) {
@@ -39,12 +39,16 @@ export default function Signin() {
     <div className="signin">
       <form className="signin__card" onSubmit={handleSubmit} noValidate>
         <h2 className="signin__title">Iniciar Sesión</h2>
-        <p className="signin__subtitle">Bienvenido a un Condominio Inteligente</p>
+        <p className="signin__subtitle">
+          Bienvenido a un Condominio Inteligente
+        </p>
 
         {error && <div className="signin__error">{error}</div>}
 
         <div className="signin__group">
-          <label htmlFor="user" className="signin__label">Usuario</label>
+          <label htmlFor="user" className="signin__label">
+            Usuario
+          </label>
           <input
             id="user"
             className="signin__input"
@@ -58,7 +62,9 @@ export default function Signin() {
         </div>
 
         <div className="signin__group">
-          <label htmlFor="pass" className="signin__label">Contraseña</label>
+          <label htmlFor="pass" className="signin__label">
+            Contraseña
+          </label>
           <input
             id="pass"
             type="password"

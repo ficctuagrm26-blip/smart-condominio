@@ -2,11 +2,11 @@ from django.urls import path
 from .views_api import (
     RegisterView, me, AdminUserViewSet, me_update, change_password,
     RolViewSet, PermissionViewSet, UnidadViewSet, CuotaViewSet, PagoViewSet,
-    InfraccionViewSet, EstadoCuentaView, EstadoCuentaExportCSV   # <-- ya lo importaste
+    InfraccionViewSet, EstadoCuentaView, EstadoCuentaExportCSV, TareaViewSet  # <-- ya lo importaste
 )
 from rest_framework.routers import DefaultRouter
 from rest_framework.authtoken.views import obtain_auth_token
-
+from .views_api import AvisoViewSet,AreaComunViewSet  # importa el nuevo viewset
 router = DefaultRouter()
 router.register(r'admin/users', AdminUserViewSet, basename='admin-users')
 router.register(r'roles', RolViewSet, basename='roles')
@@ -15,6 +15,10 @@ router.register(r'unidades', UnidadViewSet, basename='unidades')
 router.register(r'cuotas', CuotaViewSet, basename='cuotas')
 router.register(r'pagos',  PagoViewSet,  basename='pagos')
 router.register(r'infracciones', InfraccionViewSet, basename='infracciones')
+router.register(r'avisos', AvisoViewSet, basename='avisos')
+router.register(r'tareas', TareaViewSet, basename='tareas')
+router.register(r'areas-comunes', AreaComunViewSet, basename='area-comun')
+
 
 urlpatterns = [
     # Auth / perfil
@@ -23,6 +27,8 @@ urlpatterns = [
     path('auth/me/', me, name='me'),
     path('auth/me/update/', me_update, name='me-update'),
     path('auth/change-password/', change_password, name='change-password'),
+    
+    
 
     # 👇👇 NUEVOS ENDPOINTS DE ESTADO DE CUENTA
     path('estado-cuenta/', EstadoCuentaView.as_view(), name='estado-cuenta'),
