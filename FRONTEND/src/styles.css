@@ -597,3 +597,87 @@ body,
   max-width: 100%;
   overflow-x: hidden;
 }
+/* ===== Ajustes finos para móvil (≤ 480px) ===== */
+@media (max-width: 480px) {
+  /* Compactar el layout general */
+  .content {
+    padding: 10px 8px;
+  }
+  .card {
+    padding: 10px;
+    border-radius: 10px;
+    box-shadow: 0 6px 16px rgba(0, 0, 0, 0.25);
+  }
+  .card__header {
+    margin-bottom: 6px;
+  }
+
+  /* Títulos más contenidos */
+  h1 {
+    font-size: 22px;
+    line-height: 1.2;
+    margin: 0 0 8px;
+  }
+  h2 {
+    font-size: 18px;
+    line-height: 1.25;
+    margin: 0 0 8px;
+  }
+  h3 {
+    font-size: 16px;
+    line-height: 1.25;
+    margin: 0 0 6px;
+  }
+
+  /* Variables UI: un poco menos de alto pero sin activar auto-zoom */
+  :root {
+    --au-field-h: 40px; /* antes 44px */
+  }
+
+  /* Inputs/botones compactos (mantener 16px de fuente para no hacer zoom) */
+  .au-input,
+  .au-button,
+  input,
+  select,
+  textarea,
+  button {
+    height: var(--au-field-h);
+    min-height: var(--au-field-h);
+    padding: 8px 10px;
+    font-size: 16px !important; /* evita auto-zoom */
+    line-height: 1.15;
+  }
+
+  /* Listas y toolbars en una sola columna, menos gap */
+  .au-toolbar__form,
+  .au-grid-2,
+  .au-grid-3 {
+    gap: 8px;
+  }
+
+  /* Tablas dentro de cards: menos padding por celda en móvil */
+  .au-table thead th,
+  .au-table tbody td,
+  .au-table tfoot td {
+    padding: 8px 10px;
+  }
+
+  /* Sidebar: items un poco más cerrados */
+  .nav__link,
+  .nav__sublink {
+    padding: 8px 8px;
+  }
+  .nav-group__header {
+    padding: 8px 8px;
+  }
+}
+
+/* ===== Ajuste de tipografía general para móviles medianos (≤ 768px) ===== */
+@media (max-width: 768px) {
+  h1 {
+    font-size: 24px;
+  }
+  h2 {
+    font-size: 20px;
+  }
+}

@@ -3,15 +3,26 @@
   <head>
     <meta charset="UTF-8" />
     <link rel="icon" type="image/svg+xml" href="/vite.svg" />
+
     <!-- Viewport sólido para móviles -->
     <meta
       name="viewport"
       content="width=device-width, initial-scale=1, minimum-scale=1, viewport-fit=cover"
     />
-    <!-- Si sigues viendo “saltos” al enfocar inputs, prueba esta variante:
-    <meta name="viewport" content="width=device-width, initial-scale=1, minimum-scale=1, maximum-scale=1, user-scalable=no, viewport-fit=cover" />
-    -->
+
+    <!-- Evita que iOS/Android hagan auto-link y zoom en teléfonos -->
+    <meta name="format-detection" content="telephone=no" />
+
+    <!-- Color de la barra del navegador en móviles -->
     <meta name="theme-color" content="#0b1220" />
+
+    <!-- PWA iOS (opcional, no rompe si no usas PWA) -->
+    <meta name="apple-mobile-web-app-capable" content="yes" />
+    <meta
+      name="apple-mobile-web-app-status-bar-style"
+      content="black-translucent"
+    />
+
     <title>Smart Condominio</title>
   </head>
   <body>
