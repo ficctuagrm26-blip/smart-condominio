@@ -159,6 +159,14 @@ export default function Layout() {
               >
                 Gestionar Usuarios (CU04)
               </NavLink>
+              <NavLink
+                to="/admin/roles"
+                className={({ isActive }) =>
+                  `nav__sublink ${isActive ? "active" : ""}`
+                }
+              >
+                Gestionar Roles (CU05)
+              </NavLink>
                {/* ---- Gestión de usuarios ---- */}
               <div className="nav__package">
                 <button

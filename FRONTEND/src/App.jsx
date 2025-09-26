@@ -18,7 +18,7 @@ import MisAvisosPage from "./pages/MisAvisosPage";
 
 import AdminTareasPage from "./pages/AdminTareasPage";
 import MisTareasPage from "./pages/MisTareasPage";
-
+import RolesPage from "./pages/Roles";
 // NUEVO
 import AsignarTareasPage from "./pages/AsignarTareasPage";
 
@@ -58,10 +58,10 @@ export default function App() {
             }
           />
           <Route
-            path="/admin/roles-permisos"
+            path="/admin/roles"
             element={
               <RequireRole roles={["ADMIN"]}>
-                <RolesPermisos />
+                <RolesPage />
               </RequireRole>
             }
           />
