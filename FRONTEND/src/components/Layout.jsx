@@ -106,12 +106,6 @@ export default function Layout() {
             Dashboard
           </NavLink>
           <NavLink
-            to="/me"
-            className={({ isActive }) => `nav__link ${isActive ? "active" : ""}`}
-          >
-            Mi perfil
-          </NavLink>
-          <NavLink
             to="/estado-cuenta"
             className={({ isActive }) => `nav__link ${isActive ? "active" : ""}`}
           >
@@ -143,29 +137,36 @@ export default function Layout() {
               className="nav-group__header"
               onClick={() => setAdminOpen((v) => !v)}
             >
-              <span>Administración</span>
+              <span>GESTIONAR USUARIOS</span>
               <span className={`chev ${adminOpen ? "open" : ""}`}>▸</span>
             </button>
-
+            
             <div className={`nav-group__items ${adminOpen ? "open" : ""}`}>
               {/* ---- Enlace directo ---- */}
               <NavLink
-                to="/admin/roles-permisos"
+                to="/me"
                 className={({ isActive }) =>
                   `nav__sublink ${isActive ? "active" : ""}`
                 }
               >
-                Roles & Permisos
+                Gestionar Perfil (CU03)
               </NavLink>
-
-              {/* ---- Gestión de usuarios ---- */}
+              <NavLink
+                to="/admin/usuarios"
+                className={({ isActive }) =>
+                  `nav__sublink ${isActive ? "active" : ""}`
+                }
+              >
+                Gestionar Usuarios (CU04)
+              </NavLink>
+               {/* ---- Gestión de usuarios ---- */}
               <div className="nav__package">
                 <button
                   type="button"
                   className="nav-group__header"
                   onClick={() => setUsrOpen((v) => !v)}
                 >
-                  <span>Gestión de usuarios</span>
+                  <span>Gestionar Usuarios (CU04)</span>
                   <span className={`chev ${usrOpen ? "open" : ""}`}>▸</span>
                 </button>
                 <div className={`nav-group__items ${usrOpen ? "open" : ""}`}>
@@ -192,6 +193,16 @@ export default function Layout() {
                   </Link>
                 </div>
               </div>
+              <NavLink
+                to="/admin/roles-permisos"
+                className={({ isActive }) =>
+                  `nav__sublink ${isActive ? "active" : ""}`
+                }
+              >
+                Roles & Permisos
+              </NavLink>
+
+             
 
               {/* ---- Gestionar unidades ---- */}
               <div className="nav__package">
