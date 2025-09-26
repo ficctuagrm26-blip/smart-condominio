@@ -1,0 +1,204 @@
+/* =========================
+   Perfil (Me.css)
+   Diseño oscuro, limpio y responsive
+   ========================= */
+
+:root {
+  --bg: #0b0d12;
+  --surface: #0f1422;
+  --surface-2: #12192a;
+  --stroke: #1f2a44;
+  --primary: #4f7cff;
+  --primary-600: #3f65d1;
+  --txt: #e5e7eb;
+  --txt-dim: #9aa4b2;
+  --success: #22c55e;
+  --warning: #f59e0b;
+  --danger: #ef4444;
+  --shadow: 0 10px 24px rgba(0, 0, 0, 0.35);
+  --radius: 14px;
+}
+
+/* ---------- Contenedores base ---------- */
+.card {
+  background: var(--surface);
+  border: 1px solid var(--stroke);
+  border-radius: var(--radius);
+  box-shadow: var(--shadow);
+  padding: 20px;
+}
+
+.card h3 {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  font-size: 20px;
+  margin: 0 0 16px;
+  color: var(--txt);
+}
+
+.card h4 {
+  font-size: 16px;
+  margin: 8px 0 12px;
+  color: var(--txt);
+}
+
+/* ---------- Badge ---------- */
+.badge {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  font-size: 11px;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: .4px;
+  color: #dbe3ff;
+  background: rgba(79, 124, 255, .12);
+  border: 1px solid rgba(79, 124, 255, .35);
+  padding: 4px 8px;
+  border-radius: 999px;
+}
+
+/* ---------- Mensajes ---------- */
+.info {
+  background: rgba(34, 197, 94, .1);
+  border: 1px solid rgba(34, 197, 94, .35);
+  color: #bbf7d0;
+  border-radius: 10px;
+  padding: 10px 12px;
+  margin: 8px 0 16px;
+  font-size: 13px;
+}
+
+.error {
+  background: rgba(239, 68, 68, .12);
+  border: 1px solid rgba(239, 68, 68, .35);
+  color: #fecaca;
+  border-radius: 10px;
+  padding: 10px 12px;
+  margin: 8px 0 16px;
+  font-size: 13px;
+}
+
+.muted {
+  color: var(--txt-dim);
+  font-size: 12px;
+}
+
+/* ---------- Formularios ---------- */
+.au-form {
+  background: var(--surface-2);
+  border: 1px solid var(--stroke);
+  border-radius: 12px;
+  padding: 16px;
+}
+
+.au-form + .au-form {
+  margin-top: 16px;
+}
+
+.au-form label {
+  display: block;
+  font-size: 12px;
+  color: var(--txt-dim);
+  margin-bottom: 6px;
+}
+
+.au-readonly {
+  background: #0c1323;
+  border: 1px dashed rgba(255, 255, 255, .08);
+  color: var(--txt);
+  padding: 10px 12px;
+  border-radius: 10px;
+  font-size: 14px;
+}
+
+/* Contenedor del campo para mantener layout estable */
+.au-field { display: flex; flex-direction: column; gap: 6px; }
+
+/* Grid de campos: 2 columnas en desktop, 1 en mobile */
+.au-form__grid {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 14px 16px;
+}
+@media (max-width: 640px) {
+  .au-form__grid {
+    grid-template-columns: 1fr;
+  }
+}
+
+/* ---------- Inputs ---------- */
+.au-input {
+  width: 100%;
+  background: #0b1120;
+  color: var(--txt);
+  border: 1px solid rgba(255, 255, 255, .08);
+  border-radius: 10px;
+  padding: 10px 12px;
+  font-size: 14px;
+  outline: none;
+  transition: border-color .2s ease, box-shadow .2s ease, background .2s ease;
+}
+
+.au-input::placeholder { color: #808aa3; }
+
+.au-input:hover { border-color: rgba(255, 255, 255, .18); }
+
+.au-input:focus {
+  border-color: var(--primary);
+  box-shadow: 0 0 0 3px rgba(79, 124, 255, .25);
+  background: #0c1429;
+}
+
+.au-input:disabled { opacity: .6; cursor: not-allowed; }
+
+/* Estado de error */
+.au-input--error {
+  border-color: rgba(239, 68, 68, .8);
+  box-shadow: 0 0 0 3px rgba(239, 68, 68, .25);
+}
+.au-error-text {
+  margin-top: 4px;
+  font-size: 12px;
+  color: #fecaca;
+}
+
+/* ---------- Botones ---------- */
+.au-button {
+  appearance: none;
+  border: 1px solid var(--primary);
+  background: var(--primary);
+  color: white;
+  font-weight: 600;
+  font-size: 14px;
+  padding: 10px 14px;
+  border-radius: 12px;
+  cursor: pointer;
+  transition: transform .06s ease, filter .2s ease, background .2s ease, border-color .2s ease;
+  box-shadow: 0 6px 14px rgba(79, 124, 255, .25);
+}
+
+.au-button:hover { filter: brightness(1.05); }
+.au-button:active { transform: translateY(1px); }
+.au-button:disabled { opacity: .6; cursor: not-allowed; box-shadow: none; }
+
+.au-button.au-button--ghost {
+  background: transparent;
+  color: var(--txt);
+  border-color: rgba(255, 255, 255, .18);
+  box-shadow: none;
+}
+.au-button.au-button--ghost:hover { border-color: rgba(255, 255, 255, .35); }
+
+/* ---------- Acciones ---------- */
+.au-actions { display: flex; gap: 8px; margin-top: 12px; }
+
+/* ---------- Antialias ---------- */
+.au-input, .au-button, .badge {
+  -webkit-font-smoothing: antialiased;
+  -moz-osx-font-smoothing: grayscale;
+}
+
+/* ---------- Utilidades ---------- */
+.hidden { display: none !important; }
