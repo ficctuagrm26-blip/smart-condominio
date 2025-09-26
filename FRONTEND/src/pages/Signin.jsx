@@ -88,7 +88,14 @@ export default function Signin() {
         </div>
 
         <p className="signin__muted">
-          ¿Olvidaste tu contraseña? <a href="#">Contacta al admin</a>
+          ¿Olvidaste tu contraseña?{" "}
+          <a
+            href="https://wa.link/z85omz"
+            target="_blank"
+            rel="noopener noreferrer"
+          >
+            Contacta al admin
+          </a>
         </p>
       </form>
     </div>
