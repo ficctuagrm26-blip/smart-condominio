@@ -563,3 +563,37 @@ body {
 .layout--locked {
   overflow: hidden;
 }
+/* Evita auto-zoom en iOS/Android al enfocar inputs (<16px) */
+@media (max-width: 900px) {
+  /* Asegura 16px en campos y botones interactivos */
+  input,
+  select,
+  textarea,
+  button,
+  .au-input,
+  .au-button {
+    font-size: 16px !important;
+  }
+}
+
+/* Mejora el render en iOS */
+html {
+  -webkit-text-size-adjust: 100%;
+}
+
+/* Que nada desborde el ancho de la pantalla en móvil */
+img,
+video,
+canvas,
+svg {
+  max-width: 100%;
+  height: auto;
+}
+
+/* Evita que algún contenedor fuerce scroll horizontal */
+body,
+.layout,
+.content {
+  max-width: 100%;
+  overflow-x: hidden;
+}
