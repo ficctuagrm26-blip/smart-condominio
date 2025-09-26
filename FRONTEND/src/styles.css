@@ -2,13 +2,16 @@
 :root {
   color-scheme: dark;
 
-  --primary: #4f46e5; /* indigo-600 */
+  --primary: #4f46e5;
   --bg: #0b1220;
   --card: #111827;
   --text: #e5e7eb;
   --muted: #94a3b8;
   --border: #1f2937;
-  --container: 1180px; /* ancho máx del contenido */
+  --container: 1180px;
+
+  --au-field-h: 44px;
+  --au-font-size: 14px;
 }
 
 html,
@@ -30,13 +33,59 @@ body {
   grid-template-columns: 260px 1fr; /* sidebar + contenido */
   min-height: 100%;
 }
+
+/* ===== Topbar (móvil) ===== */
+.topbar {
+  display: none;
+  position: sticky;
+  top: 0;
+  z-index: 40;
+  height: 52px;
+  align-items: center;
+  padding: 0 12px;
+  gap: 8px;
+  border-bottom: 1px solid rgba(255, 255, 255, 0.08);
+  background: var(--bg);
+}
+.topbar__title {
+  font-weight: 700;
+}
+.topbar__spacer {
+  margin-left: auto;
+}
+.hamburger {
+  background: transparent;
+  border: 1px solid rgba(255, 255, 255, 0.25);
+  border-radius: 8px;
+  padding: 6px 10px;
+  font-size: 18px;
+  line-height: 1;
+  color: var(--text);
+  cursor: pointer;
+}
+
+/* ===== Sidebar ===== */
 .sidebar {
   padding: 20px;
   border-right: 1px solid var(--border);
   display: flex;
   flex-direction: column;
   gap: 8px;
+  background: var(--bg);
+  z-index: 35;
 }
+.sidebar__backdrop {
+  position: fixed;
+  inset: 52px 0 0 0;
+  background: rgba(0, 0, 0, 0.45);
+  display: none;
+  z-index: 30;
+}
+.sidebar__backdrop.open {
+  display: block;
+}
+
+/* ===== Contenido ===== */
 .content {
   width: 100%;
   max-width: var(--container);
@@ -106,6 +155,10 @@ body {
 .nav__sublink {
   padding-left: 14px;
 }
+.nav__package {
+  margin-bottom: 12px;
+}
+
 .spacer {
   flex: 1;
 }
@@ -130,8 +183,18 @@ body {
   width: 100%;
   box-shadow: 0 10px 24px rgba(0, 0, 0, 0.2);
 }
+.card__header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+  margin-bottom: 8px;
+}
+.card__section {
+  margin-top: 10px;
+}
 
-/* === Login (card específica solo para Signin) === */
+/* === Login === */
 .center {
   min-height: 100%;
   display: grid;
@@ -187,18 +250,28 @@ body {
   font-size: 12px;
 }
 
-/* === Inputs & labels (páginas internas) === */
+/* === Inputs & labels === */
 .au-label {
   font-size: 12px;
   color: var(--muted);
 }
+.au-field {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  min-width: 0;
+}
 .au-input {
-  height: 36px;
-  padding: 6px 10px;
+  height: var(--au-field-h);
+  min-height: var(--au-field-h);
+  padding: 10px 12px;
   border-radius: 8px;
   background: #0f172a;
   border: 1px solid var(--border);
   color: var(--text);
+  font-size: var(--au-font-size);
+  line-height: 1;
+  box-sizing: border-box;
 }
 .au-checkbox {
   display: inline-flex;
@@ -213,7 +286,7 @@ body {
   align-items: center;
   justify-content: center;
   gap: 8px;
-  padding: 8px 14px;
+  padding: 10px 14px;
   border-radius: 8px;
   font-weight: 600;
   line-height: 1;
@@ -221,6 +294,8 @@ body {
   background: var(--primary);
   color: #fff;
   border: 1px solid transparent;
+  height: var(--au-field-h);
+  min-height: var(--au-field-h);
 }
 .au-button:hover {
   filter: brightness(1.05);
@@ -230,11 +305,12 @@ body {
   border-color: var(--primary);
   color: var(--primary);
 }
-.au-button.is-active {
-  border: 1px solid var(--primary);
+.au-button--full {
+  width: 100%;
+  display: block;
 }
 
-/* === Toolbars (buscadores, acciones) === */
+/* === Toolbars === */
 .au-toolbar {
   padding: 12px;
 }
@@ -250,12 +326,6 @@ body {
 }
 .au-toolbar .au-button {
   width: auto !important;
-} /* nunca full width */
-.au-field {
-  display: flex;
-  flex-direction: column;
-  gap: 6px;
-  min-width: 280px;
 }
 
 /* === Grids auxiliares === */
@@ -264,17 +334,21 @@ body {
   gap: 12px;
   grid-template-columns: repeat(3, minmax(0, 1fr));
 }
-@media (max-width: 900px) {
-  .au-grid-3 {
-    grid-template-columns: 1fr;
-  }
+.au-grid-2 {
+  display: grid;
+  gap: 12px;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
 }
 
 /* === Tablas === */
+.table-wrap {
+  overflow-x: auto;
+}
 .au-table {
   width: 100%;
   border-collapse: separate;
   border-spacing: 0;
+  min-width: 720px;
 }
 .au-table thead th {
   text-align: left;
@@ -297,32 +371,15 @@ body {
   padding: 10px 12px;
 }
 
-/* === Responsive === */
-@media (max-width: 900px) {
-  .layout {
-    grid-template-columns: 1fr;
-  } /* sidebar podría ir colapsable si luego lo convertimos */
-  .au-toolbar__form {
-    grid-template-columns: 1fr;
-  }
-  .au-toolbar .au-button {
-    width: 100% !important;
-  }
-}
-
-/* Tipografía */
-h2 {
-  margin: 0 0 12px;
-  font-weight: 700;
-}
-/* Espaciado entre botones dentro de celdas de tabla */
+/* Espaciado botones en tabla */
 .au-table td .au-button {
   margin-right: 8px;
 }
 .au-table td .au-button:last-child {
   margin-right: 0;
 }
-/* chips pequeñas para estado/prioridad */
+
+/* Chips pequeñas */
 .tag {
   display: inline-block;
   padding: 2px 8px;
@@ -355,7 +412,6 @@ h2 {
   border-color: #ef4444;
   color: #fca5a5;
 }
-
 .tag--prio-baja {
   border-color: #94a3b8;
   color: #94a3b8;
@@ -372,8 +428,6 @@ h2 {
   border-color: #ef4444;
   color: #fca5a5;
 }
-
-/* acciones en tablas con espacio y wrap */
 .au-actions {
   display: flex;
   gap: 8px;
@@ -383,72 +437,129 @@ h2 {
   margin: 0;
 }
 
-/* grid utilitario para modales simples */
-.au-grid-2 {
-  display: grid;
-  grid-template-columns: repeat(2, minmax(0, 1fr));
-  gap: 12px;
+/* === Calendario mensual ===== */
+.calendar__nav {
+  display: flex;
+  gap: 8px;
 }
-@media (max-width: 900px) {
+.month-grid {
+  display: grid;
+  grid-template-columns: repeat(7, 1fr);
+  gap: 8px;
+}
+.month-head {
+  text-align: center;
+  font-weight: 700;
+  opacity: 0.8;
+  padding: 6px 0;
+}
+.month-loading {
+  grid-column: 1 / -1;
+  text-align: center;
+  padding: 20px 0;
+  opacity: 0.8;
+}
+.month-cell {
+  position: relative;
+  border-radius: 10px;
+  padding: 10px;
+  height: 84px;
+  background: rgba(255, 255, 255, 0.035);
+  border: 1px solid rgba(255, 255, 255, 0.06);
+}
+.month-cell .day {
+  font-weight: 700;
+  font-size: 14px;
+  opacity: 0.9;
+}
+.month-cell .dot {
+  position: absolute;
+  right: 8px;
+  bottom: 8px;
+  width: 10px;
+  height: 10px;
+  border-radius: 50%;
+  border: 1px solid transparent;
+}
+.dot--free {
+  background: #e8f5e9;
+  border-color: #a5d6a7;
+}
+.dot--full {
+  background: #ffebee;
+  border-color: #ef9a9a;
+}
+.dot--norules {
+  background: #eceff1;
+  border-color: #cfd8dc;
+}
+.month-cell.is-free {
+  outline: 1px solid rgba(165, 214, 167, 0.35);
+}
+.month-cell.is-full {
+  outline: 1px solid rgba(239, 154, 154, 0.35);
+}
+.month-cell.is-norules {
+  outline: 1px solid rgba(207, 216, 220, 0.25);
+}
+.month-cell--empty {
+  background: transparent;
+  border: none;
+}
+
+/* === Breakpoints / Responsivo === */
+@media (max-width: 1100px) {
+  .au-grid-3 {
+    grid-template-columns: 1fr;
+  }
   .au-grid-2 {
     grid-template-columns: 1fr;
   }
-}
-/* ===== Utilidades para Roles & Permisos ===== */
-.au-chip {
-  font-size: 12px;
-  padding: 2px 8px;
-  border: 1px solid var(--border);
-  border-radius: 999px;
-  color: var(--text);
-  opacity: 0.9;
+  .au-toolbar__form {
+    grid-template-columns: 1fr;
+  }
+  .au-toolbar .au-button {
+    width: 100% !important;
+  }
 }
 
-/* Modal (genérico, respeta tu tema) */
-.au-modal {
-  position: fixed;
-  inset: 0;
-  display: grid;
-  place-items: center;
-  z-index: 100;
-}
-.au-modal__backdrop {
-  position: absolute;
-  inset: 0;
-  background: rgba(0, 0, 0, 0.55);
-}
-.au-modal__panel {
-  position: relative;
-  width: min(1100px, 92vw);
-  max-height: 86vh;
-  overflow: auto;
-}
-.au-modal__header,
-.au-modal__footer {
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  gap: 12px;
-  margin-bottom: 12px;
+@media (max-width: 900px) {
+  .month-cell {
+    height: 64px;
+    padding: 8px;
+  }
 }
 
-/* Enlaces tipo acción dentro del modal */
-.au-link {
-  background: none;
-  border: 0;
-  color: #93c5fd;
-  cursor: pointer;
-  padding: 0;
-  text-decoration: underline;
+/* Modo móvil: sidebar deslizable */
+@media (max-width: 980px) {
+  .layout {
+    grid-template-columns: 1fr;
+  }
+  .topbar {
+    display: flex;
+  }
+  .sidebar {
+    position: fixed;
+    left: 0;
+    top: 52px;
+    width: 86%;
+    max-width: 320px;
+    height: calc(100vh - 52px);
+    overflow-y: auto;
+    border-right: 1px solid var(--border);
+    transform: translateX(-100%);
+    transition: transform 0.2s ease;
+    box-shadow: 0 10px 30px rgba(0, 0, 0, 0.35);
+  }
+  .sidebar.open {
+    transform: translateX(0);
+  }
+  .content {
+    padding: 16px 12px;
+  }
 }
-.nav__package {
-  margin-bottom: 12px;
-}
-.nav__packageTitle {
-  font-size: 12px;
-  font-weight: 700;
-  text-transform: uppercase;
-  color: #9ca3af; /* gris claro */
-  margin: 8px 0;
-  padding-left: 8px;
+
+/* Evita scroll del body cuando el sidebar está abierto (móvil) */
+.layout--locked {
+  overflow: hidden;
 }

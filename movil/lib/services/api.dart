@@ -33,16 +33,18 @@ Future<Map<String, dynamic>> postJson(
     body: jsonEncode(body),
   );
   final data = res.body.isEmpty ? {} : jsonDecode(res.body);
-  if (res.statusCode >= 200 && res.statusCode < 300)
+  if (res.statusCode >= 200 && res.statusCode < 300) {
     return (data as Map).cast<String, dynamic>();
+  }
   throw ApiError(res.statusCode, _errorFromBody(data, res.body));
 }
 
 Future<Map<String, dynamic>> getJson(String path, {String? token}) async {
   final res = await http.get(_u(path), headers: _jsonHeaders(token));
   final data = res.body.isEmpty ? {} : jsonDecode(res.body);
-  if (res.statusCode >= 200 && res.statusCode < 300)
+  if (res.statusCode >= 200 && res.statusCode < 300) {
     return (data as Map).cast<String, dynamic>();
+  }
   throw ApiError(res.statusCode, _errorFromBody(data, res.body));
 }
 
@@ -57,15 +59,17 @@ Future<Map<String, dynamic>> patchJson(
     body: jsonEncode(body),
   );
   final data = res.body.isEmpty ? {} : jsonDecode(res.body);
-  if (res.statusCode >= 200 && res.statusCode < 300)
+  if (res.statusCode >= 200 && res.statusCode < 300) {
     return (data as Map).cast<String, dynamic>();
+  }
   throw ApiError(res.statusCode, _errorFromBody(data, res.body));
 }
 
 String _errorFromBody(dynamic data, String raw) {
   if (data is Map && data['detail'] != null) return '${data['detail']}';
-  if (data is Map && data['non_field_errors'] != null)
+  if (data is Map && data['non_field_errors'] != null) {
     return '${data['non_field_errors']}';
+  }
   return raw;
 }
 

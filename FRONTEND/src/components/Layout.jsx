@@ -31,6 +31,13 @@ export default function Layout() {
     navigate("/signin", { replace: true });
   };
 
+  // ====== Estado móvil: sidebar ======
+  const [sidebarOpen, setSidebarOpen] = useState(false);
+  useEffect(() => {
+    // cada navegación cierra el sidebar en móvil
+    setSidebarOpen(false);
+  }, [location.pathname, location.search]);
+
   // activos (por ?group=)
   const params = new URLSearchParams(location.search);
   const currentGroup = params.get("group");
@@ -64,8 +71,28 @@ export default function Layout() {
   const [repOpen, setRepOpen] = useState(isPath("/admin/reportes"));
 
   return (
-    <div className="layout">
-      <aside className="sidebar">
+    <div className={`layout ${sidebarOpen ? "layout--locked" : ""}`}>
+      {/* ===== Topbar (móvil) ===== */}
+      <header className="topbar">
+        <button
+          className="hamburger"
+          aria-label="Abrir menú"
+          onClick={() => setSidebarOpen((v) => !v)}
+        >
+          ☰
+        </button>
+        <div className="topbar__title">Smart Condominio</div>
+        <div className="topbar__spacer" />
+      </header>
+
+      {/* ===== Backdrop móvil ===== */}
+      <div
+        className={`sidebar__backdrop ${sidebarOpen ? "open" : ""}`}
+        onClick={() => setSidebarOpen(false)}
+      />
+
+      {/* ===== Sidebar ===== */}
+      <aside className={`sidebar ${sidebarOpen ? "open" : ""}`}>
         <div style={{ fontSize: 18, fontWeight: 700, marginBottom: 10 }}>
           Smart Condominio
         </div>
@@ -119,7 +146,7 @@ export default function Layout() {
           </button>
 
           <div className={`nav-group__items ${adminOpen ? "open" : ""}`}>
-            {/* ---- Enlace directo: SIEMPRE PRIMERO ---- */}
+            {/* ---- Enlace directo ---- */}
             <NavLink
               to="/admin/roles-permisos"
               className={({ isActive }) =>
@@ -341,6 +368,7 @@ export default function Layout() {
         </div>
       </aside>
 
+      {/* ===== Contenido ===== */}
       <main className="content">
         <Outlet />
       </main>

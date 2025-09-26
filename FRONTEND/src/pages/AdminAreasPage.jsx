@@ -1,25 +1,21 @@
 // src/pages/AdminAreasPage.jsx
-import { useEffect, useMemo, useState } from "react";
+// Catálogo de áreas: listado + formulario colapsable (crear/editar) SIN cards anidadas
+
+import { useEffect, useState } from "react";
 import { listAreas, createArea, updateArea, deleteArea } from "../api/areas";
 
 export default function AdminAreasPage() {
   const [items, setItems] = useState([]);
   const [loading, setLoading] = useState(false);
 
-  const [form, setForm] = useState({
-    nombre: "",
-    descripcion: "",
-    ubicacion: "",
-    capacidad: 1,
-    costo_por_hora: "0.00",
-    activa: true,
-    requiere_aprobacion: false,
-  });
+  // Formulario (oculto por defecto)
+  const [showForm, setShowForm] = useState(false);
   const [editingId, setEditingId] = useState(null);
+  const [form, setForm] = useState(emptyForm());
   const [error, setError] = useState("");
 
-  const resetForm = () =>
-    setForm({
+  function emptyForm() {
+    return {
       nombre: "",
       descripcion: "",
       ubicacion: "",
@@ -27,7 +23,23 @@ export default function AdminAreasPage() {
       costo_por_hora: "0.00",
       activa: true,
       requiere_aprobacion: false,
-    });
+    };
+  }
+
+  const resetForm = () => {
+    setForm(emptyForm());
+    setEditingId(null);
+  };
+
+  const openCreate = () => {
+    resetForm();
+    setShowForm(true);
+  };
+
+  const closeForm = () => {
+    resetForm();
+    setShowForm(false);
+  };
 
   const load = async () => {
     setLoading(true);
@@ -52,7 +64,7 @@ export default function AdminAreasPage() {
     setError("");
     try {
       const payload = {
-        nombre: form.nombre.trim(),
+        nombre: (form.nombre || "").trim(),
         descripcion: form.descripcion || "",
         ubicacion: form.ubicacion || "",
         capacidad: Number(form.capacidad) || 1,
@@ -66,11 +78,10 @@ export default function AdminAreasPage() {
       } else {
         await createArea(payload);
       }
-      resetForm();
-      setEditingId(null);
       await load();
-    } catch (e) {
-      setError(e?.response?.data?.detail || "Error al guardar el área.");
+      closeForm();
+    } catch (e2) {
+      setError(e2?.response?.data?.detail || "Error al guardar el área.");
     } finally {
       setLoading(false);
     }
@@ -87,6 +98,7 @@ export default function AdminAreasPage() {
       activa: !!it.activa,
       requiere_aprobacion: !!it.requiere_aprobacion,
     });
+    setShowForm(true);
     window.scrollTo({ top: 0, behavior: "smooth" });
   };
 
@@ -97,6 +109,7 @@ export default function AdminAreasPage() {
     try {
       await deleteArea(id);
       await load();
+      if (editingId === id) closeForm();
     } catch (e) {
       setError(e?.response?.data?.detail || "No se pudo eliminar el área.");
     } finally {
@@ -106,114 +119,132 @@ export default function AdminAreasPage() {
 
   return (
     <div className="card" style={{ maxWidth: 1100 }}>
-      <h2 style={{ marginBottom: 12 }}>Áreas comunes (Admin)</h2>
+      {/* Encabezado de la card */}
+      <div className="card__header">
+        <h2>Áreas comunes (Admin)</h2>
+        {!showForm && (
+          <button className="au-button" onClick={openCreate}>
+            Nueva área
+          </button>
+        )}
+      </div>
 
-      <form
-        className="au-form"
-        onSubmit={onSubmit}
-        style={{ marginBottom: 16 }}
-      >
-        <div
-          className="au-form__grid"
-          style={{ gridTemplateColumns: "1fr 1fr" }}
-        >
-          <div className="au-field">
-            <label className="au-label">Nombre</label>
-            <input
-              className="au-input"
-              value={form.nombre}
-              onChange={(e) => setForm({ ...form, nombre: e.target.value })}
-              required
-            />
-          </div>
-          <div className="au-field">
-            <label className="au-label">Ubicación</label>
-            <input
-              className="au-input"
-              value={form.ubicacion}
-              onChange={(e) => setForm({ ...form, ubicacion: e.target.value })}
-            />
-          </div>
-          <div className="au-field" style={{ gridColumn: "1 / -1" }}>
-            <label className="au-label">Descripción</label>
-            <textarea
-              className="au-input"
-              rows={2}
-              value={form.descripcion}
-              onChange={(e) =>
-                setForm({ ...form, descripcion: e.target.value })
-              }
-            />
-          </div>
-          <div className="au-field">
-            <label className="au-label">Capacidad</label>
-            <input
-              className="au-input"
-              type="number"
-              min="1"
-              value={form.capacidad}
-              onChange={(e) => setForm({ ...form, capacidad: e.target.value })}
-            />
-          </div>
-          <div className="au-field">
-            <label className="au-label">Costo por hora</label>
-            <input
-              className="au-input"
-              type="number"
-              step="0.01"
-              min="0"
-              value={form.costo_por_hora}
-              onChange={(e) =>
-                setForm({ ...form, costo_por_hora: e.target.value })
-              }
-            />
-          </div>
-          <div className="au-field">
-            <label className="au-label">Activa</label>
-            <input
-              type="checkbox"
-              checked={form.activa}
-              onChange={(e) => setForm({ ...form, activa: e.target.checked })}
-            />
-          </div>
-          <div className="au-field">
-            <label className="au-label">Requiere aprobación</label>
-            <input
-              type="checkbox"
-              checked={form.requiere_aprobacion}
-              onChange={(e) =>
-                setForm({ ...form, requiere_aprobacion: e.target.checked })
-              }
-            />
-          </div>
-          <div className="au-field" style={{ alignSelf: "end" }}>
-            <button
-              className="au-button au-button--ghost"
-              type="button"
-              onClick={() => {
-                resetForm();
-                setEditingId(null);
-              }}
+      {/* Formulario colapsable (misma card, sección interna) */}
+      {showForm && (
+        <div className="card__section">
+          <form className="au-form" onSubmit={onSubmit}>
+            <div
+              className="au-form__grid"
+              style={{ gridTemplateColumns: "1fr 1fr" }}
             >
-              Limpiar
-            </button>
-          </div>
-          <div className="au-field" style={{ alignSelf: "end" }}>
-            <button className="au-button" type="submit" disabled={loading}>
-              {editingId ? "Guardar cambios" : "Crear área"}
-            </button>
-          </div>
-        </div>
-      </form>
+              <div className="au-field">
+                <label className="au-label">Nombre</label>
+                <input
+                  className="au-input"
+                  value={form.nombre}
+                  onChange={(e) => setForm({ ...form, nombre: e.target.value })}
+                  required
+                  autoFocus
+                />
+              </div>
+              <div className="au-field">
+                <label className="au-label">Ubicación</label>
+                <input
+                  className="au-input"
+                  value={form.ubicacion}
+                  onChange={(e) =>
+                    setForm({ ...form, ubicacion: e.target.value })
+                  }
+                />
+              </div>
 
-      {error && (
-        <p className="error" style={{ marginBottom: 12 }}>
-          {error}
-        </p>
+              <div className="au-field" style={{ gridColumn: "1 / -1" }}>
+                <label className="au-label">Descripción</label>
+                <textarea
+                  className="au-input"
+                  rows={2}
+                  value={form.descripcion}
+                  onChange={(e) =>
+                    setForm({ ...form, descripcion: e.target.value })
+                  }
+                />
+              </div>
+
+              <div className="au-field">
+                <label className="au-label">Capacidad</label>
+                <input
+                  className="au-input"
+                  type="number"
+                  min="1"
+                  value={form.capacidad}
+                  onChange={(e) =>
+                    setForm({ ...form, capacidad: e.target.value })
+                  }
+                />
+              </div>
+              <div className="au-field">
+                <label className="au-label">Costo por hora</label>
+                <input
+                  className="au-input"
+                  type="number"
+                  step="0.01"
+                  min="0"
+                  value={form.costo_por_hora}
+                  onChange={(e) =>
+                    setForm({ ...form, costo_por_hora: e.target.value })
+                  }
+                />
+              </div>
+
+              <div className="au-field">
+                <label className="au-label">Activa</label>
+                <input
+                  type="checkbox"
+                  checked={form.activa}
+                  onChange={(e) =>
+                    setForm({ ...form, activa: e.target.checked })
+                  }
+                />
+              </div>
+
+              <div className="au-field">
+                <label className="au-label">Requiere aprobación</label>
+                <input
+                  type="checkbox"
+                  checked={form.requiere_aprobacion}
+                  onChange={(e) =>
+                    setForm({ ...form, requiere_aprobacion: e.target.checked })
+                  }
+                />
+              </div>
+
+              <div className="au-field" style={{ alignSelf: "end" }}>
+                <button
+                  className="au-button au-button--ghost"
+                  type="button"
+                  onClick={closeForm}
+                >
+                  Cancelar
+                </button>
+              </div>
+              <div className="au-field" style={{ alignSelf: "end" }}>
+                <button className="au-button" type="submit" disabled={loading}>
+                  {editingId ? "Guardar cambios" : "Crear área"}
+                </button>
+              </div>
+            </div>
+          </form>
+        </div>
       )}
 
-      <div className="card">
+      {/* Listado (misma card, sección interna) */}
+      <div className="card__section">
         <h3>Listado</h3>
+        {error && (
+          <p className="error" style={{ marginBottom: 8 }}>
+            {error}
+          </p>
+        )}
         {loading ? (
           <p>Cargando...</p>
         ) : items.length === 0 ? (

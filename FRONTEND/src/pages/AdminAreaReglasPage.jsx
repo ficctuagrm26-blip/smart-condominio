@@ -1,5 +1,5 @@
 // src/pages/AdminAreaReglasPage.jsx
-// CU19: Configurar disponibilidad, horarios y reglas de uso de áreas
+// CU19: Reglas de disponibilidad con formulario colapsable (Nueva regla)
 
 import { useEffect, useMemo, useState } from "react";
 import {
@@ -18,10 +18,13 @@ function timeOK(t) {
 export default function AdminAreaReglasPage() {
   const [areas, setAreas] = useState([]);
   const [areaId, setAreaId] = useState("");
-  const [dia, setDia] = useState("");
+  const [diaFiltro, setDiaFiltro] = useState("");
   const [items, setItems] = useState([]);
   const [loading, setLoading] = useState(false);
+  const [error, setError] = useState("");
 
+  // Form colapsable
+  const [showForm, setShowForm] = useState(false);
   const [editingId, setEditingId] = useState(null);
   const [form, setForm] = useState({
     dia_semana: "",
@@ -29,8 +32,8 @@ export default function AdminAreaReglasPage() {
     hora_fin: "",
     max_horas_por_reserva: 4,
   });
-  const [error, setError] = useState("");
 
+  // ====== bootstrap
   useEffect(() => {
     (async () => {
       try {
@@ -49,7 +52,7 @@ export default function AdminAreaReglasPage() {
     try {
       const arr = await listReglas({
         area: areaId,
-        ...(dia !== "" ? { dia_semana: dia } : {}),
+        ...(diaFiltro !== "" ? { dia_semana: diaFiltro } : {}),
       });
       const sorted = arr.slice().sort((a, b) => {
         if (a.dia_semana !== b.dia_semana) return a.dia_semana - b.dia_semana;
@@ -65,8 +68,9 @@ export default function AdminAreaReglasPage() {
 
   useEffect(() => {
     loadReglas(); /* eslint-disable-next-line */
-  }, [areaId, dia]);
+  }, [areaId, diaFiltro]);
 
+  // ====== helpers form
   const resetForm = () => {
     setForm({
       dia_semana: "",
@@ -75,6 +79,14 @@ export default function AdminAreaReglasPage() {
       max_horas_por_reserva: 4,
     });
     setEditingId(null);
+  };
+  const openCreate = () => {
+    resetForm();
+    setShowForm(true);
+  };
+  const closeForm = () => {
+    resetForm();
+    setShowForm(false);
   };
 
   const valid = useMemo(() => {
@@ -106,7 +118,7 @@ export default function AdminAreaReglasPage() {
       };
       if (editingId) await updateRegla(editingId, payload);
       else await createRegla(payload);
-      resetForm();
+      closeForm();
       await loadReglas();
     } catch (e2) {
       setError(e2?.response?.data?.detail || "Error al guardar la regla.");
@@ -123,6 +135,7 @@ export default function AdminAreaReglasPage() {
       hora_fin: String(r.hora_fin || "").slice(0, 5),
       max_horas_por_reserva: r.max_horas_por_reserva ?? 4,
     });
+    setShowForm(true);
     window.scrollTo({ top: 0, behavior: "smooth" });
   };
 
@@ -142,12 +155,18 @@ export default function AdminAreaReglasPage() {
 
   return (
     <div className="card" style={{ maxWidth: 1100 }}>
-      <h2 style={{ marginBottom: 12 }}>
-        Reglas de disponibilidad (Áreas comunes)
-      </h2>
+      {/* Header unificado */}
+      <div className="card__header">
+        <h2>Reglas de disponibilidad (Áreas comunes)</h2>
+        {!showForm && (
+          <button className="au-button" onClick={openCreate}>
+            Nueva regla
+          </button>
+        )}
+      </div>
 
-      {/* Filtros */}
-      <div className="card" style={{ marginBottom: 12 }}>
+      {/* Filtros (siempre visibles) */}
+      <div className="card__section">
         <div
           className="au-form__grid"
           style={{ gridTemplateColumns: "1fr 1fr 1fr" }}
@@ -173,8 +192,8 @@ export default function AdminAreaReglasPage() {
             <label className="au-label">Día (filtro)</label>
             <select
               className="au-input"
-              value={dia}
-              onChange={(e) => setDia(e.target.value)}
+              value={diaFiltro}
+              onChange={(e) => setDiaFiltro(e.target.value)}
             >
               <option value="">Todos</option>
               {DIA_CHOICES.map((d) => (
@@ -186,9 +205,10 @@ export default function AdminAreaReglasPage() {
           </div>
           <div className="au-field" style={{ alignSelf: "end" }}>
             <button
-              className="au-button au-button--ghost"
+              className="au-button au-button--full"
               onClick={loadReglas}
               disabled={!areaId || loading}
+              type="button"
             >
               Refrescar
             </button>
@@ -196,99 +216,109 @@ export default function AdminAreaReglasPage() {
         </div>
       </div>
 
-      {/* Form Alta/Edición */}
-      <form
-        className="au-form"
-        onSubmit={onSubmit}
-        style={{ marginBottom: 16 }}
-      >
-        <div
-          className="au-form__grid"
-          style={{ gridTemplateColumns: "1fr 1fr 1fr 1fr" }}
-        >
-          <div className="au-field">
-            <label className="au-label">Día</label>
-            <select
-              className="au-input"
-              value={form.dia_semana}
-              onChange={(e) => setForm({ ...form, dia_semana: e.target.value })}
-              required
+      {/* Form colapsable */}
+      {showForm && (
+        <div className="card__section">
+          <form className="au-form" onSubmit={onSubmit}>
+            <div
+              className="au-form__grid"
+              style={{ gridTemplateColumns: "repeat(4, 1fr)" }}
             >
-              <option value="" disabled>
-                Seleccione...
-              </option>
-              {DIA_CHOICES.map((d) => (
-                <option key={d.value} value={d.value}>
-                  {d.label}
-                </option>
-              ))}
-            </select>
-          </div>
-          <div className="au-field">
-            <label className="au-label">Hora inicio</label>
-            <input
-              className="au-input"
-              type="time"
-              value={form.hora_inicio}
-              onChange={(e) =>
-                setForm({ ...form, hora_inicio: e.target.value })
-              }
-              required
-            />
-          </div>
-          <div className="au-field">
-            <label className="au-label">Hora fin</label>
-            <input
-              className="au-input"
-              type="time"
-              value={form.hora_fin}
-              onChange={(e) => setForm({ ...form, hora_fin: e.target.value })}
-              required
-            />
-          </div>
-          <div className="au-field">
-            <label className="au-label">Máx. horas por reserva</label>
-            <input
-              className="au-input"
-              type="number"
-              min="1"
-              value={form.max_horas_por_reserva}
-              onChange={(e) =>
-                setForm({ ...form, max_horas_por_reserva: e.target.value })
-              }
-              required
-            />
-          </div>
-          <div className="au-field" style={{ alignSelf: "end" }}>
-            <button
-              className="au-button au-button--ghost"
-              type="button"
-              onClick={resetForm}
-            >
-              Limpiar
-            </button>
-          </div>
-          <div className="au-field" style={{ alignSelf: "end" }}>
-            <button
-              className="au-button"
-              type="submit"
-              disabled={!areaId || !valid || loading}
-            >
-              {editingId ? "Guardar cambios" : "Agregar regla"}
-            </button>
-          </div>
-        </div>
-      </form>
+              <div className="au-field">
+                <label className="au-label">Día</label>
+                <select
+                  className="au-input"
+                  value={form.dia_semana}
+                  onChange={(e) =>
+                    setForm({ ...form, dia_semana: e.target.value })
+                  }
+                  required
+                >
+                  <option value="" disabled>
+                    Seleccione...
+                  </option>
+                  {DIA_CHOICES.map((d) => (
+                    <option key={d.value} value={d.value}>
+                      {d.label}
+                    </option>
+                  ))}
+                </select>
+              </div>
+              <div className="au-field">
+                <label className="au-label">Hora inicio</label>
+                <input
+                  className="au-input"
+                  type="time"
+                  value={form.hora_inicio}
+                  onChange={(e) =>
+                    setForm({ ...form, hora_inicio: e.target.value })
+                  }
+                  required
+                />
+              </div>
+              <div className="au-field">
+                <label className="au-label">Hora fin</label>
+                <input
+                  className="au-input"
+                  type="time"
+                  value={form.hora_fin}
+                  onChange={(e) =>
+                    setForm({ ...form, hora_fin: e.target.value })
+                  }
+                  required
+                />
+              </div>
+              <div className="au-field">
+                <label className="au-label">Máx. horas por reserva</label>
+                <input
+                  className="au-input"
+                  type="number"
+                  min="1"
+                  value={form.max_horas_por_reserva}
+                  onChange={(e) =>
+                    setForm({ ...form, max_horas_por_reserva: e.target.value })
+                  }
+                  required
+                />
+              </div>
 
-      {error && (
-        <p className="error" style={{ marginBottom: 12 }}>
-          {error}
-        </p>
+              <div
+                className="au-field"
+                style={{ gridColumn: "1 / span 2", alignSelf: "end" }}
+              >
+                <button
+                  className="au-button au-button--ghost au-button--full"
+                  type="button"
+                  onClick={closeForm}
+                >
+                  Cancelar
+                </button>
+              </div>
+              <div
+                className="au-field"
+                style={{ gridColumn: "3 / span 2", alignSelf: "end" }}
+              >
+                <button
+                  className="au-button au-button--full"
+                  type="submit"
+                  disabled={!areaId || !valid || loading}
+                >
+                  {editingId ? "Guardar cambios" : "Agregar regla"}
+                </button>
+              </div>
+            </div>
+          </form>
+        </div>
       )}
 
       {/* Listado */}
-      <div className="card">
+      <div className="card__section">
         <h3>Reglas configuradas</h3>
+        {error && (
+          <p className="error" style={{ marginBottom: 12 }}>
+            {error}
+          </p>
+        )}
         {loading ? (
           <p>Cargando...</p>
         ) : items.length === 0 ? (
