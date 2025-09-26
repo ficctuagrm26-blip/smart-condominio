@@ -169,3 +169,6 @@ MEDIA_URL = "/media/"
 MEDIA_ROOT = BASE_DIR / "media"
 
 # WhiteNoise sirve SOLO estáticos, no media. Para prod conviene S3; en dev servimos con Django.
+
+STRIPE_API_KEY = os.getenv("STRIPE_API_KEY", "")
+STRIPE_WEBHOOK_SECRET = os.getenv("STRIPE_WEBHOOK_SECRET", "")
