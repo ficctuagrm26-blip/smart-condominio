@@ -1,214 +1,74 @@
-/* ===== Permisos (solo afecta esta página) ===== */
-.permisos-page {
-  --bg-elev: #0f1422;
-  --bg-elev-2: #121829;
-  --bd: #263046;
-  --txt: #e5e7eb;
-  --txt-dim: #aab2c5;
-  --accent: #6ea8ff;
-  --accent-2: #81c995;
-  --danger: #f87171;
-  --shadow: 0 10px 24px rgba(0,0,0,.35);
-  --radius: 14px;
-  color: var(--txt);
+:root{
+  --bg:#0b0d12;
+  --surface:#0f1422;
+  --surface-2:#121a2b;
+  --stroke:#1f2a44;
+  --txt:#e5e7eb;
+  --txt-dim:#93a0b4;
+  --primary:#4f7cff;
+  --danger:#ef4444;
+  --radius:14px;
+  --shadow:0 12px 28px rgba(0,0,0,.35);
 }
 
-/* Tarjetas y toolbar */
-.permisos-page .card {
-  background: var(--bg-elev);
-  border: 1px solid var(--bd);
-  border-radius: var(--radius);
-  box-shadow: var(--shadow);
-}
+.permisos{ display:flex; flex-direction:column; gap:12px; width: 90%; }
 
-.permisos-page .au-toolbar {
-  padding: 14px 16px;
-}
+/* Cards / layout */
+.card{ background:var(--surface); border:1px solid var(--stroke); border-radius:var(--radius);
+  box-shadow:var(--shadow); padding:16px; }
+.grid-2{ display:grid; grid-template-columns:1fr 1fr; }
+@media (max-width: 860px){ .grid-2{ grid-template-columns:1fr; } }
+.gap-16{ gap:16px; }
+.mt-6{ margin-top:6px; }
+.p-12{ padding:12px; }
+.m-0{ margin:0; }
+.min-260{ min-width:260px; }
 
-.permisos-page .au-toolbar__form {
-  display: flex;
-  align-items: center;
-  gap: 12px;
-  width: 100%;
-}
+/* Toolbar */
+.au-toolbar__form{ display:flex; gap:10px; align-items:center; flex-wrap:wrap; }
+.au-toolbar__spacer{ flex:1; }
 
-.permisos-page .au-toolbar__spacer {
-  flex: 1;
-}
+/* Fields */
+.au-field{ display:flex; flex-direction:column; gap:6px; }
+.au-label{ font-size:12px; color:var(--txt-dim); }
+.section-head{ display:flex; flex-direction:column; }
 
-/* Campos y etiquetas */
-.permisos-page .au-field {
-  display: grid;
-  gap: 6px;
+/* Inputs / buttons */
+.au-input{
+  width:100%; background:#0b1120; color:var(--txt);
+  border:1px solid rgba(255,255,255,.08); border-radius:10px; padding:10px 12px;
+  font-size:14px; outline:none; transition:border-color .2s ease, box-shadow .2s ease;
 }
+.au-input:focus{ border-color:var(--primary); box-shadow:0 0 0 3px rgba(79,124,255,.25); }
 
-.permisos-page .au-label {
-  font-size: 12px;
-  text-transform: uppercase;
-  letter-spacing: .05em;
-  color: var(--txt-dim);
+.au-button{
+  border:1px solid var(--primary); background:var(--primary); color:#fff;
+  font-weight:600; padding:8px 12px; border-radius:10px; cursor:pointer;
 }
+.au-button:disabled{ opacity:.6; cursor:not-allowed; }
+.au-button--ghost{ background:transparent; color:var(--txt); border-color:rgba(255,255,255,.18); }
+.au-button--danger{ background:var(--danger); border-color:var(--danger); }
 
-.permisos-page .au-input {
-  width: 100%;
-  height: 38px;
-  border-radius: 10px;
-  border: 1px solid var(--bd);
-  background: var(--bg-elev-2);
-  color: var(--txt);
-  padding: 0 12px;
-  outline: none;
-  transition: border-color .15s ease, box-shadow .15s ease;
+/* Lists */
+.listbox{
+  margin-top:8px; max-height:400px; overflow:auto;
+  border:1px solid var(--stroke); border-radius:10px; padding:8px;
+  background:var(--surface-2);
 }
+.perm-row{
+  display:flex; align-items:center; gap:8px; padding:8px 6px; border-radius:8px;
+}
+.perm-row:hover{ background:#0d1730; }
+.perm-code code{ font-family:ui-monospace,SFMono-Regular,Menlo,Monaco,Consolas,"Liberation Mono","Courier New",monospace; font-size:12px; color:#c7d2fe; }
+.perm-name{ color:var(--txt); opacity:.9; }
+.perm-actions{ margin-left:auto; display:flex; gap:8px; }
 
-.permisos-page .au-input:focus {
-  border-color: var(--accent);
-  box-shadow: 0 0 0 3px rgba(110,168,255,.15);
-}
+/* Text helpers */
+.muted{ color:var(--txt-dim); }
+.txt-center{ text-align:center; }
 
-/* Botones */
-.permisos-page .au-button {
-  height: 36px;
-  padding: 0 14px;
-  border-radius: 10px;
-  border: 1px solid var(--bd);
-  background: linear-gradient(180deg, #1a2440, #11182d);
-  color: var(--txt);
-  cursor: pointer;
-  transition: transform .05s ease, filter .15s ease, border-color .15s ease;
-}
-
-.permisos-page .au-button:hover {
-  filter: brightness(1.06);
-  border-color: var(--accent);
-}
-
-.permisos-page .au-button:active {
-  transform: translateY(1px);
-}
-
-.permisos-page .au-button[disabled] {
-  opacity: .55;
-  cursor: not-allowed;
-}
-
-.permisos-page .au-button--ghost {
-  background: transparent;
-  border: 1px dashed var(--bd);
-}
-
-.permisos-page .au-button.au-button--danger {
-  border-color: rgba(248,113,113,.35);
-  background: linear-gradient(180deg, rgba(248,113,113,.13), rgba(248,113,113,.05));
-}
-
-/* Grid principal (dos columnas) */
-.permisos-page .card[style*="grid"] {
-  /* asegura buen padding aunque venga inline */
-  padding: 14px;
-}
-
-.permisos-page .card .col {
-  display: flex;
-  flex-direction: column;
-  min-width: 0; /* evita overflow por contenidos largos */
-}
-
-/* Listas con scroll */
-.permisos-page .scrollbox {
-  margin-top: 8px;
-  max-height: 420px;
-  overflow: auto;
-  border: 1px solid var(--bd);
-  border-radius: 12px;
-  padding: 8px;
-  background: var(--bg-elev-2);
-}
-
-/* Estilo de cada fila de permiso */
-.permisos-page .perm-row {
-  display: flex;
-  align-items: center;
-  gap: 10px;
-  padding: 8px 6px;
-  border-radius: 10px;
-  transition: background .15s ease, border-color .15s ease;
-}
-
-.permisos-page .perm-row:hover {
-  background: rgba(255,255,255,.03);
-}
-
-.permisos-page .perm-code {
-  font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, "Liberation Mono", monospace;
-  font-size: 12.5px;
-  background: rgba(110,168,255,.12);
-  border: 1px solid rgba(110,168,255,.25);
-  color: #cfe0ff;
-  padding: 4px 8px;
-  border-radius: 8px;
-  white-space: nowrap;
-}
-
-.permisos-page .perm-name {
-  color: var(--txt-dim);
-  font-size: 13px;
-  overflow: hidden;
-  text-overflow: ellipsis;
-}
-
-/* Botonera derecha en cada fila */
-.permisos-page .perm-actions {
-  margin-left: auto;
-  display: flex;
-  gap: 8px;
-}
-
-/* Títulos de sección */
-.permisos-page h3 {
-  font-size: 18px;
-  font-weight: 700;
-  letter-spacing: .2px;
-  margin: 0;
-}
-
-.permisos-page label {
-  font-size: 13px;
-}
-
-/* Mensajes */
-.permisos-page .error {
-  color: #ff9aa2;
-  background: rgba(255, 154, 162, .08);
-  border: 1px solid rgba(255, 154, 162, .25);
-  padding: 8px 10px;
-  border-radius: 10px;
-  margin: 10px 0 0;
-}
-
-/* Scrollbar bonito (WebKit/Chromium) */
-.permisos-page .scrollbox::-webkit-scrollbar {
-  height: 10px;
-  width: 10px;
-}
-.permisos-page .scrollbox::-webkit-scrollbar-thumb {
-  background: #2a3858;
-  border-radius: 10px;
-}
-.permisos-page .scrollbox::-webkit-scrollbar-thumb:hover {
-  background: #35466b;
-}
-
-/* Responsive */
-@media (max-width: 960px) {
-  .permisos-page .card[style*="grid"] {
-    display: block !important; /* fuerza una sola columna en móviles */
-  }
-  .permisos-page .au-toolbar__form {
-    flex-wrap: wrap;
-    align-items: flex-start;
-  }
-  .permisos-page .au-field {
-    min-width: 100%;
-  }
+/* Messages */
+.error{
+  background:rgba(239,68,68,.12); border:1px solid rgba(239,68,68,.35);
+  color:#fecaca; border-radius:10px; padding:10px 12px; margin:8px 0 12px; font-size:13px;
 }

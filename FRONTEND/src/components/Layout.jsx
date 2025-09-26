@@ -167,6 +167,22 @@ export default function Layout() {
               >
                 Gestionar Roles (CU05)
               </NavLink>
+              <NavLink
+                to="/admin/permisos"
+                className={({ isActive }) =>
+                  `nav__sublink ${isActive ? "active" : ""}`
+                }
+              >
+                Gestionar Permisos (CU06)
+              </NavLink>
+              <NavLink
+                to="/estado-cuenta"
+                className={({ isActive }) =>
+                  `nav__sublink ${isActive ? "active" : ""}`
+                }
+              >
+                Consultar Estado de Cuenta (CU10)
+              </NavLink>
                {/* ---- Gestión de usuarios ---- */}
               <div className="nav__package">
                 <button
