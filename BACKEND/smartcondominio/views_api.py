@@ -223,15 +223,37 @@ class UnidadViewSet(viewsets.ModelViewSet):
     serializer_class = UnidadSerializer
 
     authentication_classes = [TokenAuthentication]
-    # Solo admin escribe; cualquiera autenticado puede leer (cámbialo si quieres solo admin total)
     permission_classes = [IsAuthenticated, IsAdmin]
 
-    # backends correctos
     filter_backends = [DjangoFilterBackend, SearchFilter, OrderingFilter]
-    filterset_fields = ["torre", "bloque", "estado", "tipo", "is_active", "propietario", "residente"]
-    search_fields = ["torre", "bloque", "numero"]
-    ordering_fields = ["torre", "bloque", "numero", "updated_at"]
-    ordering = ["torre", "bloque", "numero"]
+
+    # Lookups útiles (puedes ajustar)
+    filterset_fields = {
+        "manzana": ["exact", "icontains"],
+        "lote": ["exact", "icontains"],
+        "estado": ["exact"],
+        "tipo": ["exact"],
+        "is_active": ["exact"],
+        "propietario": ["exact"],
+        "residente": ["exact"],
+    }
+    search_fields = ["manzana", "lote", "numero"]
+    ordering_fields = ["manzana", "lote", "numero", "updated_at"]
+    ordering = ["manzana", "lote", "numero"]
+
+    # --- Compatibilidad temporal con ?torre=&bloque= ---
+    def get_queryset(self):
+        qs = super().get_queryset()
+        req = self.request.query_params
+
+        # Permite seguir usando ?torre=&bloque= desde el FE antiguo
+        torre = req.get("torre")
+        bloque = req.get("bloque")
+        if torre:
+            qs = qs.filter(manzana__icontains=torre)
+        if bloque:
+            qs = qs.filter(lote__icontains=bloque)
+        return qs
 
     @action(methods=["post"], detail=True, url_path="desactivar")
     def desactivar(self, request, pk=None):

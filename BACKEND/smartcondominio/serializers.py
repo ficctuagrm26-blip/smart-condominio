@@ -324,36 +324,63 @@ class RolSimpleSerializer(serializers.ModelSerializer):
 #-------UNIDADES GESTION -------
 class UnidadSerializer(serializers.ModelSerializer):
     propietario_nombre = serializers.CharField(source="propietario.get_full_name", read_only=True)
-    residente_nombre = serializers.CharField(source="residente.get_full_name", read_only=True)
+    residente_nombre   = serializers.CharField(source="residente.get_full_name", read_only=True)
+
+    # --- Alias de compatibilidad con clientes antiguos ---
+    torre  = serializers.CharField(write_only=True, required=False, allow_blank=True)
+    bloque = serializers.CharField(write_only=True, required=False, allow_blank=True)
 
     class Meta:
         model = Unidad
         fields = [
             "id",
-            "torre", "bloque", "numero", "piso",
+            # nuevos nombres canon
+            "manzana", "lote", "numero", "piso",
             "tipo", "metraje", "coeficiente",
             "dormitorios", "parqueos", "bodegas",
             "estado", "is_active",
             "propietario", "propietario_nombre",
             "residente", "residente_nombre",
             "created_at", "updated_at",
+            # alias antiguos (entrada opcional mientras migras el FE)
+            "torre", "bloque",
         ]
-        read_only_fields = ["created_at", "updated_at"]
+        read_only_fields = ["created_at", "updated_at", "is_active"]
 
     def validate(self, attrs):
-        # Evita duplicados (con soporte para PATCH)
-        torre = attrs.get("torre", getattr(self.instance, "torre", None))
-        bloque = attrs.get("bloque", getattr(self.instance, "bloque", None))
-        numero = attrs.get("numero", getattr(self.instance, "numero", None))
+        # ---- Mapear alias a los nombres nuevos (para compat) ----
+        if not attrs.get("manzana") and "torre" in attrs:
+            attrs["manzana"] = (attrs.pop("torre") or "").strip()
+        if not attrs.get("lote") and "bloque" in attrs:
+            attrs["lote"] = (attrs.pop("bloque") or "").strip()
 
-        if torre and numero:
-            qs = Unidad.objects.filter(torre=torre, bloque=bloque, numero=numero)
+        # Normaliza strings
+        for k in ("manzana", "lote", "numero"):
+            if k in attrs and attrs[k] is not None:
+                attrs[k] = str(attrs[k]).strip()
+
+        # ---- Reglas de negocio útiles ----
+        estado    = attrs.get("estado",    getattr(self.instance, "estado",    None))
+        residente = attrs.get("residente", getattr(self.instance, "residente", None))
+        if residente and estado == "DESOCUPADA":
+            raise serializers.ValidationError({
+                "estado": "Si hay residente, la unidad no puede estar 'Desocupada'."
+            })
+
+        # ---- Unicidad amigable (solo entre activas) ----
+        manzana = attrs.get("manzana", getattr(self.instance, "manzana", None))
+        lote    = attrs.get("lote",    getattr(self.instance, "lote",    None))
+        numero  = attrs.get("numero",  getattr(self.instance, "numero",  None))
+
+        if manzana and numero:
+            qs = Unidad.objects.filter(manzana=manzana, lote=lote, numero=numero, is_active=True)
             if self.instance:
                 qs = qs.exclude(pk=self.instance.pk)
             if qs.exists():
-                raise serializers.ValidationError(
-                    {"numero": "Ya existe una unidad con esa combinación (torre/bloque/número)."}
-                )
+                raise serializers.ValidationError({
+                    "numero": "Ya existe una unidad con esa combinación (manzana/lote/número)."
+                })
+
         return attrs
     
 class CuotaSerializer(serializers.ModelSerializer):

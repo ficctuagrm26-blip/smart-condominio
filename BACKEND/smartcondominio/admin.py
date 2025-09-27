@@ -9,16 +9,19 @@ class ProfileAdmin(admin.ModelAdmin):
 
 @admin.register(Unidad)
 class UnidadAdmin(admin.ModelAdmin):
-    list_display = (      # columnas que se mostrarán en la tabla del admin
-        "id", "torre", "bloque", "numero",
-        "tipo", "estado", "propietario", "residente", "is_active"
+    list_display = (
+        "id", "manzana", "lote", "numero",
+        "tipo", "estado", "propietario", "residente",
+        "is_active", "updated_at",
     )
-    list_filter = (       # filtros en la barra lateral
-        "torre", "tipo", "estado", "is_active"
+    list_filter = ("manzana", "lote", "estado", "tipo", "is_active")
+    search_fields = (
+        "manzana", "lote", "numero",
+        "propietario__first_name", "propietario__last_name",
+        "residente__first_name", "residente__last_name",
     )
-    search_fields = (     # campos por los que se podrá buscar en el admin
-        "torre", "bloque", "numero"
-    )
+    ordering = ("manzana", "lote", "numero")
+    autocomplete_fields = ("propietario", "residente")
 from .models import Aviso
 
 @admin.register(Aviso)

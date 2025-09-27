@@ -68,17 +68,21 @@ class Unidad(models.Model):
         ("INACTIVA", "Inactiva"),
     ]
 
-    # Identificación física
-    torre = models.CharField(max_length=100)
-    bloque = models.CharField(max_length=100, null=True, blank=True)
-    numero = models.CharField(max_length=20)
-    piso = models.IntegerField(null=True, blank=True)
+    # Identificación “cruceña”
+    manzana = models.CharField(max_length=100)                 # antes torre
+    lote    = models.CharField(max_length=100, blank=True)     # antes bloque
+    numero  = models.CharField(max_length=20)                  # Nº casa/dpto/local
+    piso    = models.IntegerField(null=True, blank=True)       # relevante en DEP/LOCAL
 
     # Características
-    tipo = models.CharField(max_length=20, choices=TIPO_CHOICES)
-    metraje = models.DecimalField(max_digits=8, decimal_places=2, validators=[MinValueValidator(0)])
-    coeficiente = models.DecimalField(  # alícuota
-        max_digits=5, decimal_places=2, validators=[MinValueValidator(0), MaxValueValidator(100)]
+    tipo = models.CharField(max_length=20, choices=TIPO_CHOICES, default="CASA")
+    metraje = models.DecimalField(
+        max_digits=8, decimal_places=2, null=True, blank=True,
+        validators=[MinValueValidator(0)]
+    )
+    coeficiente = models.DecimalField(
+        max_digits=6, decimal_places=4, null=True, blank=True,  # más precisión
+        validators=[MinValueValidator(0), MaxValueValidator(100)]
     )
     dormitorios = models.IntegerField(default=0, validators=[MinValueValidator(0)])
     parqueos = models.IntegerField(default=0, validators=[MinValueValidator(0)])
@@ -99,18 +103,19 @@ class Unidad(models.Model):
     updated_at = models.DateTimeField(auto_now=True)
 
     class Meta:
-        # Unicidad lógica para unidades activas (torre + bloque + numero)
         constraints = [
+            # Única solo entre activas, para permitir reuso al desactivar
             models.UniqueConstraint(
-                fields=["torre", "bloque", "numero"],
-                name="uniq_unidad_torre_bloque_numero",
+                fields=["manzana", "lote", "numero"],
+                condition=Q(is_active=True),
+                name="uniq_unidad_manzana_lote_numero_active",
             )
         ]
-        ordering = ["torre", "bloque", "numero"]
+        ordering = ["manzana", "lote", "numero"]
 
     def __str__(self):
-        b = f"-{self.bloque}" if self.bloque else ""
-        return f"{self.torre}{b}-{self.numero}"
+        b = f"-{self.lote}" if self.lote else ""
+        return f"Mza {self.manzana}{b}-{self.numero}"
     
 class Cuota(models.Model):
     ESTADO_CHOICES = [

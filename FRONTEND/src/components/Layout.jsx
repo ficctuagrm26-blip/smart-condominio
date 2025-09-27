@@ -9,6 +9,43 @@ import {
 } from "react-router-dom";
 import "../styles.css";
 
+/** ========== Helpers visuales reusables (ocultan los divs) ========== */
+function NavGroup({ title, open, onToggle, children }) {
+  return (
+    <div className="nav-group">
+      <button type="button" className="nav-group__header" onClick={onToggle}>
+        <span>{title}</span>
+        <span className={`chev ${open ? "open" : ""}`}>▸</span>
+      </button>
+      <div className={`nav-group__items ${open ? "open" : ""}`}>{children}</div>
+    </div>
+  );
+}
+
+function SubGroup({ title, open, onToggle, children }) {
+  return (
+    <div className="nav__package">
+      <button type="button" className="nav-group__header" onClick={onToggle}>
+        <span>{title}</span>
+        <span className={`chev ${open ? "open" : ""}`}>▸</span>
+      </button>
+      <div className={`nav-group__items ${open ? "open" : ""}`}>{children}</div>
+    </div>
+  );
+}
+
+function NavItem({ to, children }) {
+  return (
+    <NavLink
+      to={to}
+      className={({ isActive }) => `nav__sublink ${isActive ? "active" : ""}`}
+    >
+      {children}
+    </NavLink>
+  );
+}
+
+/** ============================ Layout ============================ */
 export default function Layout() {
   const location = useLocation();
   const navigate = useNavigate();
@@ -34,11 +71,10 @@ export default function Layout() {
   // ====== Estado móvil: sidebar ======
   const [sidebarOpen, setSidebarOpen] = useState(false);
   useEffect(() => {
-    // cada navegación cierra el sidebar en móvil
-    setSidebarOpen(false);
+    setSidebarOpen(false); // cada navegación cierra el sidebar en móvil
   }, [location.pathname, location.search]);
 
-  // activos (por ?group=)
+  // Query params usados en "Usuarios / Staff / Residentes"
   const params = new URLSearchParams(location.search);
   const currentGroup = params.get("group");
   const onUsersPath = location.pathname === "/admin/usuarios";
@@ -49,26 +85,31 @@ export default function Layout() {
   // helpers
   const isPath = (p) => location.pathname.startsWith(p);
 
-  // acordeón principal
-  const defaultAdminOpen = location.pathname.startsWith("/admin");
-  const [adminOpen, setAdminOpen] = useState(defaultAdminOpen);
+  // ========= Estado de grupos (simple, por clave) =========
+  const [groups, setGroups] = useState(() => ({
+    // principal tipo "GESTIONAR USUARIOS"
+    admin: location.pathname.startsWith("/admin"),
+    // subgrupos
+    usr: isPath("/admin/usuarios"),
+    uni: isPath("/admin/unidades"),
+    fin: isPath("/admin/cuotas") || isPath("/admin/pagos"),
+    com: isPath("/admin/avisos"),
+    areas: isPath("/admin/areas-comunes"),
+    tasks: isPath("/admin/tareas") || isPath("/admin/asignar-tareas"),
+    seg: isPath("/admin/infracciones"),
+    rep: isPath("/admin/reportes"),
+    // NUEVOS grupos principales que quieras añadir (ejemplo):
+    reservas: isPath("/admin/reservas") || isPath("/admin/areas-comunes/reservas"),
+  }));
+
+  // Abrir automáticamente "admin" si entras a cualquier ruta /admin
   useEffect(() => {
-    if (location.pathname.startsWith("/admin")) setAdminOpen(true);
+    if (location.pathname.startsWith("/admin")) {
+      setGroups((g) => ({ ...g, admin: true }));
+    }
   }, [location.pathname]);
 
-  // sub-acordeones (paquetes)
-  const [usrOpen, setUsrOpen] = useState(isPath("/admin/usuarios"));
-  const [uniOpen, setUniOpen] = useState(isPath("/admin/unidades"));
-  const [finOpen, setFinOpen] = useState(
-    isPath("/admin/cuotas") || isPath("/admin/pagos")
-  );
-  const [comOpen, setComOpen] = useState(isPath("/admin/avisos"));
-  const [areasOpen, setAreasOpen] = useState(isPath("/admin/areas-comunes"));
-  const [tasksOpen, setTasksOpen] = useState(
-    isPath("/admin/tareas") || isPath("/admin/asignar-tareas")
-  );
-  const [segOpen, setSegOpen] = useState(isPath("/admin/infracciones"));
-  const [repOpen, setRepOpen] = useState(isPath("/admin/reportes"));
+  const toggle = (key) => setGroups((g) => ({ ...g, [key]: !g[key] }));
 
   return (
     <div className={`layout ${sidebarOpen ? "layout--locked" : ""}`}>
@@ -105,12 +146,7 @@ export default function Layout() {
           >
             Dashboard
           </NavLink>
-          <NavLink
-            to="/estado-cuenta"
-            className={({ isActive }) => `nav__link ${isActive ? "active" : ""}`}
-          >
-            Estado de cuenta
-          </NavLink>
+
           <NavLink
             to="/areas/disponibilidad"
             className={({ isActive }) => `nav__link ${isActive ? "active" : ""}`}
@@ -130,276 +166,121 @@ export default function Layout() {
             Mis tareas
           </NavLink>
 
-          {/* ===== Administración ===== */}
-          <div className="nav-group">
-            <button
-              type="button"
-              className="nav-group__header"
-              onClick={() => setAdminOpen((v) => !v)}
+          {/* ===== GESTIONAR USUARIOS ===== */}
+          <NavGroup
+            title="GESTIONAR USUARIOS"
+            open={groups.admin}
+            onToggle={() => toggle("admin")}
+          >
+            <NavItem to="/me">Gestionar Perfil (CU03)</NavItem>
+            <NavItem to="/admin/usuarios">Gestionar Usuarios (CU04)</NavItem>
+            <NavItem to="/admin/roles">Gestionar Roles (CU05)</NavItem>
+            <NavItem to="/admin/permisos">Gestionar Permisos (CU06)</NavItem>
+            <NavItem to="/estado-cuenta">Consultar Estado de Cuenta (CU10)</NavItem>
+            <NavItem to="/personal">Gestionar Personal (CU14)</NavItem>
+
+            {/* Subgrupo: Gestión de usuarios (CU04) */}
+            <SubGroup
+              title="Gestionar Usuarios (CU04)"
+              open={groups.usr}
+              onToggle={() => toggle("usr")}
             >
-              <span>GESTIONAR USUARIOS</span>
-              <span className={`chev ${adminOpen ? "open" : ""}`}>▸</span>
-            </button>
-            
-            <div className={`nav-group__items ${adminOpen ? "open" : ""}`}>
-              {/* ---- Enlace directo ---- */}
-              <NavLink
-                to="/me"
-                className={({ isActive }) =>
-                  `nav__sublink ${isActive ? "active" : ""}`
-                }
-              >
-                Gestionar Perfil (CU03)
-              </NavLink>
-              <NavLink
+              {/* estos tres se marcan activos con la lógica previa */}
+              <Link
                 to="/admin/usuarios"
-                className={({ isActive }) =>
-                  `nav__sublink ${isActive ? "active" : ""}`
-                }
+                className={`nav__sublink ${activeUsers ? "active" : ""}`}
               >
-                Gestionar Usuarios (CU04)
-              </NavLink>
-              <NavLink
-                to="/admin/roles"
-                className={({ isActive }) =>
-                  `nav__sublink ${isActive ? "active" : ""}`
-                }
+                Usuarios
+              </Link>
+              <Link
+                to={{ pathname: "/admin/usuarios", search: "?group=staff" }}
+                className={`nav__sublink ${activeStaff ? "active" : ""}`}
               >
-                Gestionar Roles (CU05)
-              </NavLink>
-              <NavLink
-                to="/admin/permisos"
-                className={({ isActive }) =>
-                  `nav__sublink ${isActive ? "active" : ""}`
-                }
+                Staff
+              </Link>
+              <Link
+                to={{ pathname: "/admin/usuarios", search: "?group=residents" }}
+                className={`nav__sublink ${activeResidents ? "active" : ""}`}
               >
-                Gestionar Permisos (CU06)
-              </NavLink>
-              <NavLink
-                to="/estado-cuenta"
-                className={({ isActive }) =>
-                  `nav__sublink ${isActive ? "active" : ""}`
-                }
-              >
-                Consultar Estado de Cuenta (CU10)
-              </NavLink>
-              <NavLink
-                to="/personal"
-                className={({ isActive }) =>
-                  `nav__sublink ${isActive ? "active" : ""}`
-                }
-              >
-                Gestionar Personal (CU14)
-              </NavLink>
-               {/* ---- Gestión de usuarios ---- */}
-              <div className="nav__package">
-                <button
-                  type="button"
-                  className="nav-group__header"
-                  onClick={() => setUsrOpen((v) => !v)}
-                >
-                  <span>Gestionar Usuarios (CU04)</span>
-                  <span className={`chev ${usrOpen ? "open" : ""}`}>▸</span>
-                </button>
-                <div className={`nav-group__items ${usrOpen ? "open" : ""}`}>
-                  <Link
-                    to="/admin/usuarios"
-                    className={`nav__sublink ${activeUsers ? "active" : ""}`}
-                  >
-                    Usuarios
-                  </Link>
-                  <Link
-                    to={{ pathname: "/admin/usuarios", search: "?group=staff" }}
-                    className={`nav__sublink ${activeStaff ? "active" : ""}`}
-                  >
-                    Staff
-                  </Link>
-                  <Link
-                    to={{
-                      pathname: "/admin/usuarios",
-                      search: "?group=residents",
-                    }}
-                    className={`nav__sublink ${activeResidents ? "active" : ""}`}
-                  >
-                    Residentes
-                  </Link>
-                </div>
-              </div>
-              <NavLink
-                to="/admin/roles-permisos"
-                className={({ isActive }) =>
-                  `nav__sublink ${isActive ? "active" : ""}`
-                }
-              >
-                Roles & Permisos
-              </NavLink>
+                Residentes
+              </Link>
+            </SubGroup>
 
-             
+            <NavItem to="/admin/roles-permisos">Roles & Permisos</NavItem>
 
-              {/* ---- Gestionar unidades ---- */}
-              <div className="nav__package">
-                <button
-                  type="button"
-                  className="nav-group__header"
-                  onClick={() => setUniOpen((v) => !v)}
-                >
-                  <span>Gestionar unidades</span>
-                  <span className={`chev ${uniOpen ? "open" : ""}`}>▸</span>
-                </button>
-                <div className={`nav-group__items ${uniOpen ? "open" : ""}`}>
-                  <NavLink
-                    to="/admin/unidades"
-                    className={({ isActive }) =>
-                      `nav__sublink ${isActive ? "active" : ""}`
-                    }
-                  >
-                    Unidades
-                  </NavLink>
-                </div>
-              </div>
+           
 
-              {/* ---- Finanzas ---- */}
-              <div className="nav__package">
-                <button
-                  type="button"
-                  className="nav-group__header"
-                  onClick={() => setFinOpen((v) => !v)}
-                >
-                  <span>Finanzas</span>
-                  <span className={`chev ${finOpen ? "open" : ""}`}>▸</span>
-                </button>
-                <div className={`nav-group__items ${finOpen ? "open" : ""}`}>
-                  <NavLink
-                    to="/admin/cuotas"
-                    className={({ isActive }) =>
-                      `nav__sublink ${isActive ? "active" : ""}`
-                    }
-                  >
-                    Cuotas
-                  </NavLink>
-                </div>
-              </div>
+            {/* Subgrupo: Finanzas */}
+            <SubGroup
+              title="Finanzas"
+              open={groups.fin}
+              onToggle={() => toggle("fin")}
+            >
+              <NavItem to="/admin/cuotas">Cuotas</NavItem>
+            </SubGroup>
 
-              {/* ---- Comunicación ---- */}
-              <div className="nav__package">
-                <button
-                  type="button"
-                  className="nav-group__header"
-                  onClick={() => setComOpen((v) => !v)}
-                >
-                  <span>Comunicación</span>
-                  <span className={`chev ${comOpen ? "open" : ""}`}>▸</span>
-                </button>
-                <div className={`nav-group__items ${comOpen ? "open" : ""}`}>
-                  <NavLink
-                    to="/admin/avisos"
-                    className={({ isActive }) =>
-                      `nav__sublink ${isActive ? "active" : ""}`
-                    }
-                  >
-                    Avisos (Admin)
-                  </NavLink>
-                </div>
-              </div>
+            {/* Subgrupo: Comunicación */}
+            <SubGroup
+              title="Comunicación"
+              open={groups.com}
+              onToggle={() => toggle("com")}
+            >
+              <NavItem to="/admin/avisos">Avisos (Admin)</NavItem>
+            </SubGroup>
 
-              {/* Áreas comunes */}
-              <div className="nav__package">
-                <button
-                  type="button"
-                  className="nav-group__header"
-                  onClick={() => setAreasOpen((v) => !v)}
-                >
-                  <span>Áreas comunes</span>
-                  <span className={`chev ${areasOpen ? "open" : ""}`}>▸</span>
-                </button>
-                <div className={`nav-group__items ${areasOpen ? "open" : ""}`}>
-                  <NavLink
-                    to="/admin/areas-comunes"
-                    className={({ isActive }) =>
-                      `nav__sublink ${isActive ? "active" : ""}`
-                    }
-                  >
-                    Catálogo de áreas
-                  </NavLink>
-                  <NavLink
-                    to="/admin/areas-comunes/reglas"
-                    className={({ isActive }) =>
-                      `nav__sublink ${isActive ? "active" : ""}`
-                    }
-                  >
-                    Reglas de disponibilidad
-                  </NavLink>
-                </div>
-              </div>
+            {/* Subgrupo: Áreas comunes */}
+            <SubGroup
+              title="Áreas comunes"
+              open={groups.areas}
+              onToggle={() => toggle("areas")}
+            >
+              <NavItem to="/admin/areas-comunes">Catálogo de áreas</NavItem>
+              <NavItem to="/admin/areas-comunes/reglas">
+                Reglas de disponibilidad
+              </NavItem>
+            </SubGroup>
 
-              {/* ---- Gestión de tareas ---- */}
-              <div className="nav__package">
-                <button
-                  type="button"
-                  className="nav-group__header"
-                  onClick={() => setTasksOpen((v) => !v)}
-                >
-                  <span>Gestión de tareas</span>
-                  <span className={`chev ${tasksOpen ? "open" : ""}`}>▸</span>
-                </button>
-                <div className={`nav-group__items ${tasksOpen ? "open" : ""}`}>
-                  <NavLink
-                    to="/admin/tareas"
-                    className={({ isActive }) =>
-                      `nav__sublink ${isActive ? "active" : ""}`
-                    }
-                  >
-                    Tareas (Admin)
-                  </NavLink>
-                  <NavLink
-                    to="/admin/asignar-tareas"
-                    className={({ isActive }) =>
-                      `nav__sublink ${isActive ? "active" : ""}`
-                    }
-                  >
-                    Asignar tareas
-                  </NavLink>
-                </div>
-              </div>
+            {/* Subgrupo: Gestión de tareas */}
+            <SubGroup
+              title="Gestión de tareas"
+              open={groups.tasks}
+              onToggle={() => toggle("tasks")}
+            >
+              <NavItem to="/admin/tareas">Tareas (Admin)</NavItem>
+              <NavItem to="/admin/asignar-tareas">Asignar tareas</NavItem>
+            </SubGroup>
 
-              {/* ---- Seguridad ---- */}
-              <div className="nav__package">
-                <button
-                  type="button"
-                  className="nav-group__header"
-                  onClick={() => setSegOpen((v) => !v)}
-                >
-                  <span>Seguridad</span>
-                  <span className={`chev ${segOpen ? "open" : ""}`}>▸</span>
-                </button>
-                <div className={`nav-group__items ${segOpen ? "open" : ""}`}>
-                  <NavLink
-                    to="/admin/infracciones"
-                    className={({ isActive }) =>
-                      `nav__sublink ${isActive ? "active" : ""}`
-                    }
-                  >
-                    Infracciones
-                  </NavLink>
-                </div>
-              </div>
+            {/* Subgrupo: Seguridad */}
+            <SubGroup
+              title="Seguridad"
+              open={groups.seg}
+              onToggle={() => toggle("seg")}
+            >
+              <NavItem to="/admin/infracciones">Infracciones</NavItem>
+            </SubGroup>
 
-              {/* ---- Reportes (placeholder) ---- */}
-              <div className="nav__package">
-                <button
-                  type="button"
-                  className="nav-group__header"
-                  onClick={() => setRepOpen((v) => !v)}
-                >
-                  <span>Reportes</span>
-                  <span className={`chev ${repOpen ? "open" : ""}`}>▸</span>
-                </button>
-                <div className={`nav-group__items ${repOpen ? "open" : ""}`}>
-                  {/* vacío por ahora */}
-                </div>
-              </div>
-            </div>
-          </div>
+            {/* Subgrupo: Reportes */}
+            <SubGroup
+              title="Reportes"
+              open={groups.rep}
+              onToggle={() => toggle("rep")}
+            >
+              {/* vacío por ahora */}
+            </SubGroup>
+          </NavGroup>
+
+          {/* ===== EJEMPLO de OTRO MENÚ PRINCIPAL (igual a GESTIONAR USUARIOS) ===== */}
+          <NavGroup
+            title="GESTIONAR UNIDADES"
+            open={groups.reservas}
+            onToggle={() => toggle("reservas")}
+          >
+            <NavItem to="/admin/unidades">Gestionar Unidades (CU07)</NavItem>
+            <NavItem to="/admin/reservas/nueva">Gestionar Reserva (CU17)</NavItem>
+            <NavItem to="/admin/reservas/confirmar">
+              Confirmar & Cobrar (CU18)
+            </NavItem>
+          </NavGroup>
         </div>
 
         {/* Footer fijo */}

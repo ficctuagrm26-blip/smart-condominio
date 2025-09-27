@@ -1,0 +1,125 @@
+/* ===== Scope solo para esta página ===== */
+.units-page {
+  max-width: 1200px;   /* ajusta al ancho deseado */
+  margin: 0 auto;      /* centra horizontalmente */
+  width: 90%;
+}
+
+/* ---------- FORM ---------- */
+.unit-form {
+  margin-top: 12px;
+  padding: 16px;
+  width: 100%;
+  max-width: 1100px;
+}
+.unit-form__header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  margin-bottom: 8px;
+}
+
+.unit-form__header h3 {
+  margin: 0;
+  font-size: 18px;
+  line-height: 1.3;
+}
+
+.unit-form__header-actions { display: flex; gap: 8px; }
+
+.unit-form__footer {
+  display: flex;
+  gap: 8px;
+  margin-top: 12px;
+}
+
+/* Grid de 3 columnas que colapsa en pantallas chicas */
+.au-grid-3 {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 12px;
+  margin-bottom: 12px;
+}
+@media (max-width: 980px){ .au-grid-3 { grid-template-columns: repeat(2, 1fr); } }
+@media (max-width: 680px){ .au-grid-3 { grid-template-columns: 1fr; } }
+
+/* ---------- TOOLBAR (card debajo del título) ---------- */
+.units-page .card.au-toolbar {
+  padding: 16px;
+  border-radius: 14px;
+  box-shadow: 0 2px 10px rgba(0,0,0,.25);
+}
+
+.units-page .au-toolbar__form {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: end;
+  gap: 12px;
+}
+
+.units-page .au-toolbar__form .au-field {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  flex: 1 1 220px; /* cada campo ocupa al menos 220px */
+}
+
+.units-page .au-toolbar__form .au-button {
+  width: auto !important;
+  min-width: 160px;
+  align-self: center;
+}
+
+@media (min-width: 900px) {
+  .units-page .au-toolbar__form { justify-content: flex-start; }
+  .units-page .au-toolbar__form .au-button { margin-left: auto; }
+  .units-page .au-toolbar__form .au-button + .au-button { margin-left: 8px; }
+}
+
+/* Etiquetas/inputs de la toolbar */
+.au-label { font-size: 12px; opacity: 0.85; }
+.au-input { min-height: 34px; }
+
+/* ---------- TABLE ---------- */
+.au-table--compact td,
+.au-table--compact th {
+  padding: 8px 10px;
+  line-height: 1.25;
+  font-size: 13px;
+}
+
+.au-table thead th {
+  position: sticky;
+  top: 0;
+  z-index: 1;
+}
+
+/* Anchos de columnas */
+.col--sm { width: 90px; }
+.col--md { width: 120px; }
+.col--lg { width: 160px; }
+.col--actions { width: 210px; text-align: right; }
+
+/* Acciones */
+.au-actions { white-space: nowrap; text-align: right; }
+.au-actions .au-button { margin-left: 6px; }
+
+/* ---------- BADGES DE ESTADO ---------- */
+.badge {
+  display: inline-block;
+  padding: 2px 8px;
+  border-radius: 999px;
+  font-size: 12px;
+  line-height: 1.3;
+  background: #1e293b;
+  color: #e5e7eb;
+}
+.badge--ocupada       { background: #991b1b; color: #fff; }
+.badge--desocupada    { background: #065f46; color: #fff; }
+.badge--mantenimiento { background: #92400e; color: #fff; }
+.badge--inactiva      { background: #334155; color: #e5e7eb; }
+
+/* ---------- Botón ghost ---------- */
+.au-button--ghost { opacity: .9; }
+.au-button--ghost:hover { opacity: 1; }
