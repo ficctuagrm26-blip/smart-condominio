@@ -3,7 +3,7 @@ from rest_framework.views import APIView
 from django.db import IntegrityError
 from django.db.models import Q, Sum, F, DecimalField, ExpressionWrapper
 from django.db.models.deletion import ProtectedError, RestrictedError
-from rest_framework import status, permissions, viewsets, filters
+from rest_framework import status, permissions, viewsets, filters, serializers
 from rest_framework.authentication import TokenAuthentication
 from rest_framework.decorators import api_view, permission_classes, authentication_classes, action
 from rest_framework.permissions import IsAuthenticated
@@ -14,9 +14,9 @@ from django.contrib.auth.models import Permission
 from django_filters.rest_framework import DjangoFilterBackend
 from rest_framework.filters import SearchFilter, OrderingFilter
 from datetime import date
-from .models import Rol, Profile, Unidad, Cuota, Pago, Infraccion
+from .models import Rol, Profile, Unidad, Cuota, Pago, Infraccion, Visitor, Visit
 from .permissions import IsAdmin
-from .permissions import user_role_code, has_role_permission
+from .permissions import user_role_code, has_role_permission, IsStaffGuardOrAdmin
 from .serializers import (
     RegisterSerializer,
     MeSerializer,
@@ -24,11 +24,11 @@ from .serializers import (
     MeUpdateSerializer,
     ChangePasswordSerializer,
     RolSimpleSerializer,
-    PermissionBriefSerializer, UnidadSerializer, CuotaSerializer, PagoCreateSerializer, PagoSerializer,GenerarCuotasSerializer, InfraccionSerializer,PagoEstadoCuentaSerializer,UnidadBriefECSerializer   # 👈 lo importamos (definido en serializers.py)
+    PermissionBriefSerializer, UnidadSerializer, CuotaSerializer, PagoCreateSerializer, PagoSerializer,GenerarCuotasSerializer, InfraccionSerializer,PagoEstadoCuentaSerializer,UnidadBriefECSerializer, VisitorSerializer, VisitSerializer   # 👈 lo importamos (definido en serializers.py)
 )
 from .models import Aviso, Unidad
 from .serializers import AvisoSerializer
-from .permissions import IsAdmin, user_role_code
+from .permissions import IsAdmin, user_role_code, VisitAccess, IsStaff
 from django.utils import timezone
 from django.db import models
 from .models import Tarea, TareaComentario  # + ya tienes Unidad, etc.
@@ -36,6 +36,7 @@ from .serializers import (
     # ... lo que ya tienes ...
     TareaSerializer, TareaWriteSerializer, TareaComentarioSerializer,
 )
+from rest_framework import status
 from .permissions import IsAdmin, IsStaff
 
 User = get_user_model()
@@ -82,9 +83,9 @@ class AdminUserViewSet(viewsets.ModelViewSet):
         qs = super().get_queryset()
         group = self.request.query_params.get("group")
         if group == "residents":
-            qs = qs.filter(profile__role__code="RESIDENT")
+            qs = qs.filter(profile__role__base="RESIDENT")
         elif group == "staff":
-            qs = qs.filter(Q(profile__role__code__in=["STAFF", "ADMIN"]) | Q(is_superuser=True))
+            qs = qs.filter(profile__role__base="STAFF").exclude(is_superuser=True)
         return qs
 
     def destroy(self, request, *args, **kwargs):
@@ -119,14 +120,14 @@ class AdminUserViewSet(viewsets.ModelViewSet):
     # listas rápidas
     @action(detail=False, methods=["get"], url_path="residents")
     def residents(self, request):
-        qs = self.filter_queryset(self.get_queryset().filter(profile__role__code="RESIDENT"))
+        qs = self.filter_queryset(self.get_queryset().filter(profile__role__base="RESIDENT"))
         page = self.paginate_queryset(qs)
         ser = self.get_serializer(page or qs, many=True)
         return self.get_paginated_response(ser.data) if page is not None else Response(ser.data)
 
     @action(detail=False, methods=["get"], url_path="staff")
     def staff(self, request):
-        qs = self.filter_queryset(self.get_queryset().filter(Q(profile__role__code__in=["STAFF", "ADMIN"]) | Q(is_superuser=True)))
+        qs = self.filter_queryset(self.get_queryset().filter(profile__role__base="STAFF").exclude(is_superuser=True))
         page = self.paginate_queryset(qs)
         ser = self.get_serializer(page or qs, many=True)
         return self.get_paginated_response(ser.data) if page is not None else Response(ser.data)
@@ -223,15 +224,37 @@ class UnidadViewSet(viewsets.ModelViewSet):
     serializer_class = UnidadSerializer
 
     authentication_classes = [TokenAuthentication]
-    # Solo admin escribe; cualquiera autenticado puede leer (cámbialo si quieres solo admin total)
     permission_classes = [IsAuthenticated, IsAdmin]
 
-    # backends correctos
     filter_backends = [DjangoFilterBackend, SearchFilter, OrderingFilter]
-    filterset_fields = ["torre", "bloque", "estado", "tipo", "is_active", "propietario", "residente"]
-    search_fields = ["torre", "bloque", "numero"]
-    ordering_fields = ["torre", "bloque", "numero", "updated_at"]
-    ordering = ["torre", "bloque", "numero"]
+
+    # Lookups útiles (puedes ajustar)
+    filterset_fields = {
+        "manzana": ["exact", "icontains"],
+        "lote": ["exact", "icontains"],
+        "estado": ["exact"],
+        "tipo": ["exact"],
+        "is_active": ["exact"],
+        "propietario": ["exact"],
+        "residente": ["exact"],
+    }
+    search_fields = ["manzana", "lote", "numero"]
+    ordering_fields = ["manzana", "lote", "numero", "updated_at"]
+    ordering = ["manzana", "lote", "numero"]
+
+    # --- Compatibilidad temporal con ?torre=&bloque= ---
+    def get_queryset(self):
+        qs = super().get_queryset()
+        req = self.request.query_params
+
+        # Permite seguir usando ?torre=&bloque= desde el FE antiguo
+        torre = req.get("torre")
+        bloque = req.get("bloque")
+        if torre:
+            qs = qs.filter(manzana__icontains=torre)
+        if bloque:
+            qs = qs.filter(lote__icontains=bloque)
+        return qs
 
     @action(methods=["post"], detail=True, url_path="desactivar")
     def desactivar(self, request, pk=None):
@@ -260,8 +283,11 @@ class CuotaViewSet(viewsets.ModelViewSet):
     permission_classes = [IsAuthenticated]  # + tu IsAdmin si aplica
 
     filter_backends = [DjangoFilterBackend, SearchFilter, OrderingFilter]
-    filterset_fields = ["unidad", "periodo", "concepto", "estado", "is_active", "unidad__torre"]
-    search_fields = ["periodo", "concepto", "unidad__torre", "unidad__bloque", "unidad__numero"]
+    filterset_fields = [
+    "unidad", "periodo", "concepto", "estado", "is_active",
+    "unidad__manzana", "unidad__lote", "unidad__numero",
+    ]
+    search_fields = ["periodo", "concepto", "unidad__manzana", "unidad__lote", "unidad__numero"]
     ordering_fields = ["vencimiento", "updated_at", "total_a_pagar", "pagado"]
     ordering = ["-periodo", "unidad_id"]
 
@@ -354,7 +380,7 @@ class InfraccionViewSet(viewsets.ModelViewSet):
 
     filter_backends = [DjangoFilterBackend, SearchFilter, OrderingFilter]
     filterset_fields = ["unidad", "residente", "estado", "tipo", "is_active", "fecha"]
-    search_fields = ["descripcion", "unidad__torre", "unidad__bloque", "unidad__numero"]
+    search_fields = ["descripcion", "unidad__manzana", "unidad__lote", "unidad__numero"]
     ordering_fields = ["fecha", "monto", "updated_at"]
     ordering = ["-fecha"]
 
@@ -389,7 +415,7 @@ class TareaViewSet(viewsets.ModelViewSet):
     permission_classes = [IsAuthenticated]
     filter_backends = [DjangoFilterBackend, SearchFilter, OrderingFilter]
     filterset_fields = ["estado", "prioridad", "asignado_a", "asignado_a_rol", "unidad", "is_active"]
-    search_fields = ["titulo", "descripcion", "unidad__torre", "unidad__bloque", "unidad__numero", "creado_por__username", "asignado_a__username"]
+    search_fields = ["titulo", "descripcion", "unidad__manzana", "unidad__lote", "unidad__numero", "creado_por__username", "asignado_a__username"]
     ordering_fields = ["updated_at", "created_at", "fecha_limite", "prioridad"]
     ordering = ["-updated_at", "-created_at"]
 
@@ -832,3 +858,297 @@ class AreaComunViewSet(viewsets.ModelViewSet):
         }
         resp = DisponibilidadResponseSerializer(data)
         return Response(resp.data)
+class StaffViewSet(viewsets.ModelViewSet):
+    """
+    CRUD de PERSONAL (sub-roles con Rol.base='STAFF').
+    """
+    serializer_class = AdminUserSerializer
+    authentication_classes = [TokenAuthentication]
+    permission_classes = [IsAuthenticated, IsAdmin]
+    queryset = User.objects.select_related("profile", "profile__role").all().order_by("id")
+
+    # Habilita búsqueda (?search=) y orden (?ordering=)
+    filter_backends = [filters.SearchFilter, filters.OrderingFilter]
+    search_fields = ["username", "first_name", "last_name", "email", "profile__role__code", "profile__role__name"]
+    ordering_fields = ["id", "username", "first_name", "last_name", "email"]
+
+    def get_queryset(self):
+        # Solo personal (base STAFF), excluye superusuarios
+        qs = super().get_queryset().filter(
+            profile__role__base="STAFF"
+        ).exclude(is_superuser=True)
+
+        # Alias para ?q= como búsqueda rápida (además de ?search= propio de DRF)
+        q = (self.request.query_params.get("q") or "").strip()
+        if q:
+            qs = qs.filter(
+                Q(username__icontains=q) |
+                Q(first_name__icontains=q) |
+                Q(last_name__icontains=q) |
+                Q(email__icontains=q)
+            )
+        return qs
+
+    def _ensure_staff_role(self, data: dict) -> dict:
+        code = (data.get("role_code") or "").strip().upper()
+        if not code:
+            data["role_code"] = "STAFF"
+            return data
+        try:
+            r = Rol.objects.get(code=code)
+        except Rol.DoesNotExist:
+            raise serializers.ValidationError({"role_code": "Rol no existe."})
+        if r.base != "STAFF":
+            raise serializers.ValidationError({"role_code": "Debe ser un rol de base STAFF."})
+        return data
+
+    def create(self, request, *args, **kwargs):
+        data = self._ensure_staff_role(request.data.copy())
+        ser = self.get_serializer(data=data)
+        ser.is_valid(raise_exception=True)
+        user = ser.save()
+        role = Rol.objects.get(code=data["role_code"])
+        Profile.objects.update_or_create(user=user, defaults={"role": role})
+        return Response(self.get_serializer(user).data, status=status.HTTP_201_CREATED)
+
+    def update(self, request, *args, **kwargs):
+        instance = self.get_object()
+        data = self._ensure_staff_role(request.data.copy())
+        partial = kwargs.pop("partial", False)
+        ser = self.get_serializer(instance, data=data, partial=partial)
+        ser.is_valid(raise_exception=True)
+        user = ser.save()
+        role = Rol.objects.get(code=data["role_code"])
+        Profile.objects.update_or_create(user=user, defaults={"role": role})
+        return Response(self.get_serializer(user).data)
+
+    def partial_update(self, request, *args, **kwargs):
+        kwargs["partial"] = True
+        return self.update(request, *args, **kwargs)
+    
+# VISITANTES
+class VisitorViewSet(viewsets.ModelViewSet):
+    queryset = Visitor.objects.all().order_by("full_name")
+    serializer_class = VisitorSerializer
+    filter_backends = [SearchFilter, OrderingFilter]
+    search_fields = ["full_name", "doc_number"]
+    ordering_fields = ["full_name", "doc_number"]
+
+    # listar/ver: cualquier autenticado; crear/editar/borrar: STAFF/ADMIN
+    def get_permissions(self):
+        if self.action in ["list", "retrieve"]:
+            return [IsAuthenticated()]
+        return [IsAuthenticated(), IsStaff()]
+
+# --- VISITS ---
+class VisitViewSet(viewsets.ModelViewSet):
+    queryset = Visit.objects.select_related("visitor", "unit", "host_resident").all()
+    serializer_class = VisitSerializer
+    filter_backends = [DjangoFilterBackend, SearchFilter, OrderingFilter]
+    filterset_fields = ["status", "unit", "host_resident"]
+    search_fields = ["visitor__full_name", "visitor__doc_number", "vehicle_plate", "purpose"]
+    ordering_fields = ["created_at", "entry_at", "exit_at"]
+
+    def get_permissions(self):
+        # crear/editar/cerrar estados → STAFF/ADMIN
+        staff_actions = {"create", "update", "partial_update", "destroy", "enter", "exit", "cancel", "deny"}
+        if self.action in staff_actions:
+            return [IsAuthenticated(), IsStaff()]
+        # listar/ver → autenticado
+        return [IsAuthenticated()]
+
+    def get_queryset(self):
+        qs = super().get_queryset()
+        u = self.request.user
+        # Admin / base STAFF ven todo
+        code = user_role_code(u)
+        base = getattr(getattr(getattr(u, "profile", None), "role", None), "base", None)
+        if getattr(u, "is_superuser", False) or code == "ADMIN" or base == "STAFF":
+            return qs
+        # Residente: solo sus visitas
+        mis_unidades = Unidad.objects.filter(Q(propietario=u) | Q(residente=u)).values_list("id", flat=True)
+        return qs.filter(Q(host_resident=u) | Q(unit_id__in=mis_unidades)).distinct()
+
+    def perform_create(self, serializer):
+        # No pases created_by aquí: el serializer ya lo asigna desde context
+        serializer.save()
+
+    def perform_update(self, serializer):
+        # Igual con updated_by: el serializer lo asigna
+        serializer.save()
+
+    @action(detail=True, methods=["post"])
+    def enter(self, request, pk=None):
+        visit = self.get_object()
+        if visit.status not in ["REGISTRADO", "DENEGADO"]:
+            return Response({"detail": "La visita no está en estado apto para ingreso."}, status=400)
+        visit.mark_entry(request.user)
+        visit.save()
+        return Response(VisitSerializer(visit, context={"request": request}).data)
+
+    @action(detail=True, methods=["post"])
+    def exit(self, request, pk=None):
+        visit = self.get_object()
+        if visit.status != "INGRESADO":
+            return Response({"detail": "La visita no está ingresada."}, status=400)
+        visit.mark_exit(request.user)
+        visit.save()
+        return Response(VisitSerializer(visit, context={"request": request}).data)
+
+    @action(detail=True, methods=["post"])
+    def cancel(self, request, pk=None):
+        visit = self.get_object()
+        if visit.status in ["SALIDO", "CANCELADO"]:
+            return Response({"detail": "La visita ya fue cerrada/cancelada."}, status=400)
+        visit.status = "CANCELADO"
+        visit.updated_by = request.user
+        visit.save()
+        return Response(VisitSerializer(visit, context={"request": request}).data)
+
+    @action(detail=True, methods=["post"])
+    def deny(self, request, pk=None):
+        visit = self.get_object()
+        if visit.status != "REGISTRADO":
+            return Response({"detail": "Solo se puede denegar una visita registrada."}, status=400)
+        visit.status = "DENEGADO"
+        visit.updated_by = request.user
+        visit.save()
+        return Response(VisitSerializer(visit, context={"request": request}).data)
+
+
+# --- NUEVO: API Vehículos / Solicitudes ---
+from rest_framework import viewsets, mixins
+from rest_framework.permissions import IsAuthenticated
+from rest_framework.decorators import action
+from rest_framework.response import Response
+from django.db import transaction
+from django_filters.rest_framework import DjangoFilterBackend
+from rest_framework.authentication import TokenAuthentication  # usa la tuya si es distinta
+
+from .models import Vehiculo, SolicitudVehiculo
+from .serializers import (
+    VehiculoSerializer,
+    SolicitudVehiculoCreateSerializer,
+    SolicitudVehiculoListSerializer,
+    SolicitudVehiculoReviewSerializer,
+)
+from .permissions import IsAdminOrStaff, IsOwnerOrAdmin
+
+class VehiculoViewSet(viewsets.ModelViewSet):
+    """
+    CU26 (parte): CRUD de vehículos autorizados.
+    - ADMIN/STAFF: todos.
+    - Residente/Personal: solo los propios; no pueden cambiar owner/placa/unidad.
+    """
+    queryset = Vehiculo.objects.select_related("propietario", "unidad").all()
+    serializer_class = VehiculoSerializer
+    authentication_classes = [TokenAuthentication]
+    permission_classes = [IsAuthenticated, IsOwnerOrAdmin]
+    filter_backends = [DjangoFilterBackend]
+    filterset_fields = ["placa", "propietario", "unidad", "activo", "tipo"]
+
+    def get_queryset(self):
+        qs = super().get_queryset()
+        if not IsAdminOrStaff().has_permission(self.request, self):
+            qs = qs.filter(propietario=self.request.user)
+        return qs
+
+    def perform_update(self, serializer):
+        if not IsAdminOrStaff().has_permission(self.request, self):
+            for k in ("propietario", "placa", "unidad", "autorizado_en", "autorizado_por", "activo"):
+                serializer.validated_data.pop(k, None)
+        serializer.save()
+
+
+class SolicitudVehiculoViewSet(mixins.CreateModelMixin,
+                               mixins.ListModelMixin,
+                               mixins.RetrieveModelMixin,
+                               viewsets.GenericViewSet):
+    """
+    CU25: crear solicitud (residente/personal).
+    CU26: listar/revisar (admin/staff). Acción POST /revisar/ (aprobar/rechazar).
+    """
+    queryset = SolicitudVehiculo.objects.select_related(
+        "solicitante", "unidad", "vehiculo", "revisado_por"
+    ).all()
+    authentication_classes = [TokenAuthentication]
+    permission_classes = [IsAuthenticated]
+    filter_backends = [DjangoFilterBackend]
+    filterset_fields = ["estado", "placa", "unidad", "solicitante"]
+
+    def get_serializer_class(self):
+        if self.action == "create":
+            return SolicitudVehiculoCreateSerializer
+        if self.action == "revisar":
+            return SolicitudVehiculoReviewSerializer
+        return SolicitudVehiculoListSerializer
+
+    def get_queryset(self):
+        qs = super().get_queryset()
+        if not IsAdminOrStaff().has_permission(self.request, self):
+            qs = qs.filter(solicitante=self.request.user)
+        return qs
+
+    def perform_create(self, serializer):
+        profile = getattr(self.request.user, "profile", None)
+        unidad = getattr(profile, "unit", None) or getattr(profile, "unidad", None)
+        serializer.save(
+            solicitante=self.request.user,
+            unidad=unidad,
+            estado="PENDIENTE"
+        )
+
+    @action(detail=True, methods=["post"], permission_classes=[IsAuthenticated, IsAdminOrStaff])
+    @transaction.atomic
+    def revisar(self, request, pk=None):
+        """
+        ADMIN/STAFF aprueba o rechaza.
+        body: { "accion": "aprobar" | "rechazar", "observaciones": "..." }
+        """
+        obj = self.get_object()
+        if obj.estado != "PENDIENTE":
+            return Response({"detail": "La solicitud ya fue revisada."}, status=400)
+
+        ser = SolicitudVehiculoReviewSerializer(data=request.data)
+        ser.is_valid(raise_exception=True)
+        accion = ser.validated_data["accion"]
+        obs = ser.validated_data.get("observaciones", "")
+
+        if accion == "rechazar":
+            obj.rechazar(rechazado_por=request.user, observ=obs)
+            return Response(SolicitudVehiculoListSerializer(obj).data)
+
+        # aprobar
+        unidad_override = request.query_params.get("unidad")
+        unidad = obj.unidad
+        if unidad_override:
+            from .models import Unidad  # evita circular
+            try:
+                unidad = Unidad.objects.get(pk=unidad_override)
+            except Unidad.DoesNotExist:
+                return Response({"detail": "Unidad no existe."}, status=400)
+
+        try:
+            obj.aprobar(aprobado_por=request.user, unidad=unidad, observ=obs)
+        except ValueError as e:
+            return Response({"detail": str(e)}, status=400)
+
+        return Response(SolicitudVehiculoListSerializer(obj).data, status=200)
+
+    @action(detail=True, methods=["post"], permission_classes=[IsAuthenticated])
+    @transaction.atomic
+    def cancelar(self, request, pk=None):
+         """
+         Residente cancela su propia solicitud si está PENDIENTE.
+         body: { "observaciones": "opcional" }
+         """
+         obj = self.get_object()
+         if obj.solicitante_id != request.user.id:
+             return Response({"detail": "Solo el solicitante puede cancelar su solicitud."},
+                             status=status.HTTP_403_FORBIDDEN)
+         if obj.estado != "PENDIENTE":
+             return Response({"detail": "Solo se pueden cancelar solicitudes en estado PENDIENTE."},
+                            status=status.HTTP_400_BAD_REQUEST)
+         obs = request.data.get("observaciones", "") or ""
+         obj.cancelar(cancelado_por=request.user, observ=obs)
+         return Response(SolicitudVehiculoListSerializer(obj).data, status=status.HTTP_200_OK)

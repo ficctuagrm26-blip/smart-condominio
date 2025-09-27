@@ -7,12 +7,19 @@ from django.core.validators import MinValueValidator, MaxValueValidator
 from decimal import Decimal
 from datetime import date
 from django.utils import timezone
+from django.conf import settings
 #CREAMOS UNA TABLA DE TIPO ROL 
+BASE_CHOICES = [
+    ("ADMIN", "Admin"),
+    ("STAFF", "Staff"),
+    ("RESIDENT", "Resident"),
+]
 class Rol(models.Model):
     code = models.CharField(max_length=30, unique=True)   # Ej: ADMIN
     name = models.CharField(max_length=50)                # Ej: Administrador
     description = models.TextField(blank=True)
     is_system = models.BooleanField(default=False)  # protege roles base
+    base = models.CharField(max_length=10, choices= BASE_CHOICES, default="STAFF") 
     permissions = models.ManyToManyField(Permission, blank=True, related_name="roles")
     
     class Meta:
@@ -30,8 +37,19 @@ class Rol(models.Model):
 class Profile(models.Model):
     user = models.OneToOneField(User, on_delete=models.CASCADE)
     role = models.ForeignKey(Rol, null=True, blank=True, on_delete=models.SET_NULL)
+
+    # Usa string para evitar el NameError por orden de definición
+    staff_kind = models.ForeignKey(
+        "smartcondominio.StaffKind",  # o simplemente "StaffKind"
+        null=True, blank=True,
+        on_delete=models.SET_NULL,
+        related_name="profiles",
+    )
+    staff_kind_text = models.CharField(max_length=80, blank=True, default="")
     def __str__(self):
-        return f"{self.user.username} ({self.role.code if self.role else 'Sin rol'})"
+        role_code = self.role.code if self.role else "Sin rol"
+        kind = self.staff_kind.name if self.staff_kind else (self.staff_kind_text or "")
+        return f"{self.user.username} ({role_code}{' · ' + kind if kind else ''})"
 
 @receiver(post_save, sender=User)
 def ensure_profile(sender, instance, created, **kwargs):
@@ -51,17 +69,21 @@ class Unidad(models.Model):
         ("INACTIVA", "Inactiva"),
     ]
 
-    # Identificación física
-    torre = models.CharField(max_length=100)
-    bloque = models.CharField(max_length=100, null=True, blank=True)
-    numero = models.CharField(max_length=20)
-    piso = models.IntegerField(null=True, blank=True)
+    # Identificación “cruceña”
+    manzana = models.CharField(max_length=100)                 # antes torre
+    lote    = models.CharField(max_length=100, blank=True)     # antes bloque
+    numero  = models.CharField(max_length=20)                  # Nº casa/dpto/local
+    piso    = models.IntegerField(null=True, blank=True)       # relevante en DEP/LOCAL
 
     # Características
-    tipo = models.CharField(max_length=20, choices=TIPO_CHOICES)
-    metraje = models.DecimalField(max_digits=8, decimal_places=2, validators=[MinValueValidator(0)])
-    coeficiente = models.DecimalField(  # alícuota
-        max_digits=5, decimal_places=2, validators=[MinValueValidator(0), MaxValueValidator(100)]
+    tipo = models.CharField(max_length=20, choices=TIPO_CHOICES, default="CASA")
+    metraje = models.DecimalField(
+        max_digits=8, decimal_places=2, null=True, blank=True,
+        validators=[MinValueValidator(0)]
+    )
+    coeficiente = models.DecimalField(
+        max_digits=6, decimal_places=4, null=True, blank=True,  # más precisión
+        validators=[MinValueValidator(0), MaxValueValidator(100)]
     )
     dormitorios = models.IntegerField(default=0, validators=[MinValueValidator(0)])
     parqueos = models.IntegerField(default=0, validators=[MinValueValidator(0)])
@@ -82,18 +104,19 @@ class Unidad(models.Model):
     updated_at = models.DateTimeField(auto_now=True)
 
     class Meta:
-        # Unicidad lógica para unidades activas (torre + bloque + numero)
         constraints = [
+            # Única solo entre activas, para permitir reuso al desactivar
             models.UniqueConstraint(
-                fields=["torre", "bloque", "numero"],
-                name="uniq_unidad_torre_bloque_numero",
+                fields=["manzana", "lote", "numero"],
+                condition=Q(is_active=True),
+                name="uniq_unidad_manzana_lote_numero_active",
             )
         ]
-        ordering = ["torre", "bloque", "numero"]
+        ordering = ["manzana", "lote", "numero"]
 
     def __str__(self):
-        b = f"-{self.bloque}" if self.bloque else ""
-        return f"{self.torre}{b}-{self.numero}"
+        b = f"-{self.lote}" if self.lote else ""
+        return f"Mza {self.manzana}{b}-{self.numero}"
     
 class Cuota(models.Model):
     ESTADO_CHOICES = [
@@ -497,3 +520,258 @@ class ReservaArea(models.Model):
 
     def __str__(self):
         return f"{self.area} {self.fecha_inicio} - {self.fecha_fin} ({self.estado})"
+
+
+class StaffKind(models.Model):
+    """
+    Catálogo opcional de tipos de personal (Guardia, Limpieza, Jardinería...).
+    Puedes crear/editar/eliminar libremente.
+    """
+    name = models.CharField(max_length=60, unique=True)
+    description = models.TextField(blank=True)
+    active = models.BooleanField(default=True)
+
+    class Meta:
+        ordering = ["name"]
+
+    def __str__(self):
+        return self.name
+    
+#VISITANTES
+# VISITANTES
+class Visitor(models.Model):
+    DOC_TYPES = [
+        ("CI", "Cédula"),
+        ("PASS", "Pasaporte"),
+        ("OTRO", "Otro"),
+    ]
+    full_name  = models.CharField(max_length=120)
+    doc_type   = models.CharField(max_length=10, choices=DOC_TYPES, default="CI")
+    doc_number = models.CharField(max_length=40, db_index=True)
+    phone      = models.CharField(max_length=30, blank=True)
+    # photo = models.ImageField(upload_to="visitors/", blank=True, null=True)
+
+    class Meta:
+        unique_together = [("doc_type", "doc_number")]
+
+    def save(self, *args, **kwargs):
+        # Normalización SOLO de campos de Visitor
+        if self.doc_number:
+            self.doc_number = self.doc_number.strip().upper()
+        if self.full_name:
+            self.full_name = " ".join(self.full_name.split())
+        if self.phone:
+            self.phone = self.phone.strip()
+        super().save(*args, **kwargs)
+
+    def __str__(self):
+        return f"{self.full_name} ({self.doc_type}-{self.doc_number})"
+
+
+
+class Visit(models.Model):
+    STATUS = [
+        ("REGISTRADO", "Registrado"),
+        ("INGRESADO", "Ingresado"),
+        ("SALIDO", "Salido"),
+        ("CANCELADO", "Cancelado"),
+        ("DENEGADO", "Denegado"),
+    ]
+
+    visitor = models.ForeignKey(Visitor, on_delete=models.PROTECT, related_name="visits")
+    unit = models.ForeignKey("smartcondominio.Unidad", on_delete=models.PROTECT, related_name="visits")
+    host_resident = models.ForeignKey(
+        settings.AUTH_USER_MODEL,
+        on_delete=models.PROTECT,
+        related_name="hosted_visits",
+        help_text="Residente/anfitrión de la unidad",
+    )
+
+    vehicle_plate = models.CharField(max_length=15, blank=True, db_index=True)
+    purpose = models.CharField(max_length=140, blank=True)
+    scheduled_for = models.DateTimeField(null=True, blank=True)
+
+    status = models.CharField(max_length=12, choices=STATUS, default="REGISTRADO", db_index=True)
+    entry_at = models.DateTimeField(null=True, blank=True)
+    exit_at = models.DateTimeField(null=True, blank=True)
+
+    notes = models.TextField(blank=True)
+
+    created_at = models.DateTimeField(auto_now_add=True)
+    created_by = models.ForeignKey(settings.AUTH_USER_MODEL, on_delete=models.PROTECT, related_name="visits_created")
+    updated_at = models.DateTimeField(auto_now=True)
+    updated_by = models.ForeignKey(settings.AUTH_USER_MODEL, on_delete=models.PROTECT, related_name="visits_updated", null=True, blank=True)
+    entry_by   = models.ForeignKey(settings.AUTH_USER_MODEL, on_delete=models.PROTECT, related_name="visits_entry_by", null=True, blank=True)
+    exit_by    = models.ForeignKey(settings.AUTH_USER_MODEL, on_delete=models.PROTECT, related_name="visits_exit_by",  null=True, blank=True)
+
+    class Meta:
+        indexes = [
+            models.Index(fields=["status"]),
+            models.Index(fields=["vehicle_plate"]),
+            models.Index(fields=["created_at"]),
+        ]
+        ordering = ["-created_at"]
+
+    def save(self, *args, **kwargs):
+        # Normalización de placa AQUÍ (en Visit, no en Visitor)
+        if self.vehicle_plate:
+            self.vehicle_plate = self.vehicle_plate.strip().upper().replace(" ", "")
+        super().save(*args, **kwargs)
+
+    def clean(self):
+        from django.core.exceptions import ValidationError
+        if self.exit_at and not self.entry_at:
+            raise ValidationError("No puede haber salida sin una entrada registrada.")
+        if self.exit_at and self.entry_at and self.exit_at < self.entry_at:
+            raise ValidationError("La hora de salida no puede ser anterior a la hora de entrada.")
+
+    def mark_entry(self, user):
+        self.entry_at = timezone.now()
+        self.entry_by = user
+        self.status = "INGRESADO"
+
+    def mark_exit(self, user):
+        self.exit_at = timezone.now()
+        self.exit_by = user
+        self.status = "SALIDO"
+
+
+# ========= VEHÍCULOS =========
+from django.db import models
+from django.conf import settings
+from django.utils import timezone
+
+VEHICULO_TIPO_CHOICES = [
+    ("AUTO", "Auto"),
+    ("MOTO", "Moto"),
+    ("CAMIONETA", "Camioneta"),
+    ("OTRO", "Otro"),
+]
+
+SOLICITUD_ESTADO_CHOICES = [
+    ("PENDIENTE", "Pendiente"),
+    ("APROBADA", "Aprobada"),
+    ("RECHAZADA", "Rechazada"),
+    ("CANCELADA", "Cancelada"),
+]
+
+class Vehiculo(models.Model):
+    unidad = models.ForeignKey(
+        "smartcondominio.Unidad",
+        on_delete=models.PROTECT,
+        null=True, blank=True,
+        related_name="vehiculos",
+    )
+    propietario = models.ForeignKey(
+        settings.AUTH_USER_MODEL,
+        on_delete=models.PROTECT,
+        related_name="vehiculos",
+    )
+    placa = models.CharField(max_length=15, unique=True, db_index=True)
+    marca = models.CharField(max_length=40, blank=True, default="")
+    modelo = models.CharField(max_length=40, blank=True, default="")
+    color = models.CharField(max_length=30, blank=True, default="")
+    tipo = models.CharField(max_length=12, choices=VEHICULO_TIPO_CHOICES, default="AUTO")
+
+    foto = models.ImageField(upload_to="vehiculos/fotos/", null=True, blank=True)
+
+    activo = models.BooleanField(default=True)
+    autorizado_en = models.DateTimeField(null=True, blank=True)
+    autorizado_por = models.ForeignKey(
+        settings.AUTH_USER_MODEL, null=True, blank=True,
+        on_delete=models.SET_NULL, related_name="vehiculos_autorizados"
+    )
+
+    created_at = models.DateTimeField(auto_now_add=True)
+    updated_at = models.DateTimeField(auto_now=True)
+
+    class Meta:
+        ordering = ["placa"]
+
+    def __str__(self):
+        return f"{self.placa} ({self.marca} {self.modelo})"
+
+
+class SolicitudVehiculo(models.Model):
+    solicitante = models.ForeignKey(
+        settings.AUTH_USER_MODEL,
+        on_delete=models.PROTECT,
+        related_name="solicitudes_vehiculo",
+    )
+    unidad = models.ForeignKey(
+        "smartcondominio.Unidad",
+        on_delete=models.PROTECT,
+        null=True, blank=True,
+        related_name="solicitudes_vehiculo",
+    )
+
+    # datos del vehículo solicitado
+    placa = models.CharField(max_length=15)
+    marca = models.CharField(max_length=40, blank=True, default="")
+    modelo = models.CharField(max_length=40, blank=True, default="")
+    color = models.CharField(max_length=30, blank=True, default="")
+    tipo = models.CharField(max_length=12, choices=VEHICULO_TIPO_CHOICES, default="AUTO")
+
+    # adjuntos
+    foto_placa = models.ImageField(upload_to="vehiculos/placas/", null=True, blank=True)
+    documento = models.FileField(upload_to="vehiculos/docs/", null=True, blank=True)
+
+    estado = models.CharField(max_length=12, choices=SOLICITUD_ESTADO_CHOICES, default="PENDIENTE", db_index=True)
+    observaciones = models.TextField(blank=True, default="")
+    revisado_por = models.ForeignKey(
+        settings.AUTH_USER_MODEL, null=True, blank=True,
+        on_delete=models.SET_NULL, related_name="solicitudes_vehiculo_revisadas",
+    )
+    revisado_en = models.DateTimeField(null=True, blank=True)
+
+    # vínculo con el vehículo generado al aprobar
+    vehiculo = models.ForeignKey(Vehiculo, null=True, blank=True, on_delete=models.SET_NULL, related_name="solicitudes")
+
+    created_at = models.DateTimeField(auto_now_add=True)
+    updated_at = models.DateTimeField(auto_now=True)
+
+    class Meta:
+        indexes = [models.Index(fields=["placa", "estado"])]
+        ordering = ["-created_at"]
+
+    def __str__(self):
+        return f"Solicitud {self.placa} ({self.estado})"
+
+    def aprobar(self, aprobado_por, unidad=None, observ=""):
+        # Verifica que no exista otra placa autorizada
+        existe = Vehiculo.objects.filter(placa__iexact=self.placa).exclude(activo=False).first()
+        if existe and existe.propietario_id != self.solicitante_id:
+            raise ValueError("La placa ya está registrada por otro usuario.")
+
+        vehiculo = existe or Vehiculo.objects.create(
+            propietario=self.solicitante,
+            placa=self.placa.upper(),
+            marca=self.marca, modelo=self.modelo, color=self.color, tipo=self.tipo,
+            unidad=unidad or self.unidad,
+        )
+        vehiculo.autorizado_en = timezone.now()
+        vehiculo.autorizado_por = aprobado_por
+        vehiculo.activo = True
+        vehiculo.save()
+
+        self.estado = "APROBADA"
+        self.revisado_por = aprobado_por
+        self.revisado_en = timezone.now()
+        self.observaciones = observ or self.observaciones
+        self.vehiculo = vehiculo
+        self.save()
+        return vehiculo
+
+    def rechazar(self, rechazado_por, observ=""):
+        self.estado = "RECHAZADA"
+        self.revisado_por = rechazado_por
+        self.revisado_en = timezone.now()
+        self.observaciones = observ or self.observaciones
+        self.save()
+
+    def cancelar(self, cancelado_por, observ=""):
+        if self.solicitante_id != cancelado_por.id:
+            raise ValueError("Solo el solicitante puede cancelar su solicitud.")
+        self.estado = "CANCELADA"
+        self.observaciones = observ or self.observaciones
+        self.save()

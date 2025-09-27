@@ -1,8 +1,27 @@
-// src/pages/EstadoCuentaPage.jsx
 import { useEffect, useRef, useState } from "react";
 import { getEstadoCuenta, downloadEstadoCuentaCSV } from "../api/estado_cuenta";
+import "./EstadoCuentaPage.css";
 
 const fmtBs = (n) => `Bs. ${Number(n || 0).toFixed(2)}`;
+
+const PRINT_STYLES = `
+  :root{
+    --txt:#111827;
+    --muted:#6b7280;
+    --stroke:#d1d5db;
+  }
+  *{box-sizing:border-box}
+  body{font-family:system-ui,-apple-system,Segoe UI,Roboto,Arial;margin:24px;color:var(--txt);background:#fff;}
+  h2,h3{margin:0 0 10px 0}
+  .muted{color:var(--muted);font-size:12px}
+  .kpis{display:grid;grid-template-columns:repeat(4,1fr);gap:12px;margin:12px 0}
+  .kpi{border:1px solid var(--stroke);border-radius:10px;padding:12px;background:#fff}
+  .kpi .kpi-title{font-size:12px;color:var(--muted)}
+  .kpi .kpi-value{font-size:20px;font-weight:700}
+  table{width:100%;border-collapse:collapse;margin-top:8px}
+  th,td{border:1px solid var(--stroke);padding:6px 8px;text-align:left;font-size:12px}
+  th{background:#f3f4f6}
+`;
 
 export default function EstadoCuentaPage() {
   const [loading, setLoading] = useState(true);
@@ -30,40 +49,72 @@ export default function EstadoCuentaPage() {
   const cuotas = data?.cuotas || [];
   const pagos = data?.pagos || [];
 
-  function handlePrint() {
-    // Imprime solo el contenido del card principal (ref)
-    const html = printRef.current?.innerHTML || "";
-    const w = window.open("", "_blank");
-    w.document.write(`
-      <html>
-        <head>
-          <title>Estado de cuenta</title>
-          <meta charset="utf-8" />
-          <style>
-            body{font-family:system-ui,-apple-system,Segoe UI,Roboto,Arial;margin:24px;color:#e5e7eb;background:#0b1020;}
-            table{width:100%;border-collapse:collapse}
-            th,td{border:1px solid #1f2937;padding:6px;text-align:left}
-            h2,h3{margin:0 0 10px 0}
-            .kpis{display:grid;grid-template-columns:repeat(4,1fr);gap:12px;margin:12px 0}
-            .kpi{border:1px solid #1f2937;border-radius:8px;padding:10px;background:#0f1422}
-            .muted{opacity:.8;font-size:12px}
-          </style>
-        </head>
-        <body>${html}</body>
-      </html>
-    `);
-    w.document.close();
-    w.focus();
-    w.print();
-    w.close();
+  // -------- IMPRESIÓN ROBUSTA POR IFRAME OCULTO ----------
+  function printHtml(html) {
+    const iframe = document.createElement("iframe");
+    iframe.style.position = "fixed";
+    iframe.style.right = "0";
+    iframe.style.bottom = "0";
+    iframe.style.width = "0";
+    iframe.style.height = "0";
+    iframe.style.border = "0";
+    document.body.appendChild(iframe);
+
+    const { document: doc } = iframe.contentWindow;
+    doc.open();
+    doc.write(`<!doctype html>
+<html>
+  <head>
+    <meta charset="utf-8" />
+    <title>Estado de cuenta</title>
+    <style>${PRINT_STYLES}</style>
+  </head>
+  <body>${html}</body>
+</html>`);
+    doc.close();
+
+    // Pequeña espera para que el layout se estabilice
+    setTimeout(() => {
+      try {
+        iframe.contentWindow.focus();
+        iframe.contentWindow.print();
+      } catch (err) {
+        console.error("Print error:", err);
+      } finally {
+        // Limpieza tras otro tick (algunos navegadores no permiten remover de inmediato)
+        setTimeout(() => {
+          document.body.removeChild(iframe);
+        }, 200);
+      }
+    }, 150);
   }
 
+  function handlePrint() {
+    const html = printRef.current?.innerHTML || "";
+    if (!html) {
+      alert("No hay contenido para imprimir.");
+      return;
+    }
+    printHtml(html);
+  }
+  // --------------------------------------------------------
+
+  const estadoChip = (estado) => {
+    const key = String(estado || "").toLowerCase();
+    const cls =
+      key.includes("pagada") || key.includes("pagado") ? "chip chip--ok" :
+      key.includes("parcial") ? "chip chip--warn" :
+      "chip chip--pending";
+    return <span className={cls}>{estado || "-"}</span>;
+  };
+
   return (
-    <div className="page">
-      <div className="card au-toolbar" style={{ marginBottom: 12 }}>
-        <div className="au-toolbar__form" onSubmit={(e)=>e.preventDefault()}>
-          <div>
-            <div className="au-label">Unidad</div>
+    <div className="ec-page">
+      {/* Toolbar */}
+      <div className="card ec-toolbar">
+        <form className="au-toolbar__form" onSubmit={(e)=>e.preventDefault()}>
+          <div className="au-field min-260">
+            <label className="au-label">Unidad</label>
             <select
               className="au-input"
               value={unidadSel}
@@ -79,21 +130,27 @@ export default function EstadoCuentaPage() {
 
           <div className="au-toolbar__spacer" />
 
-          <button className="au-button" onClick={() => downloadEstadoCuentaCSV(unidadSel || undefined)}>
+          <button
+            type="button"
+            className="au-button"
+            onClick={() => downloadEstadoCuentaCSV(unidadSel || undefined)}
+          >
             Descargar CSV
           </button>
-          <button className="au-button au-button--ghost" onClick={handlePrint}>
+          <button type="button" className="au-button au-button--ghost" onClick={handlePrint}>
             Imprimir
           </button>
-        </div>
+        </form>
       </div>
 
-      <div className="card" ref={printRef}>
-        {/* Encabezado imprimible */}
-        <h2>Estado de cuenta</h2>
-        <div className="muted" style={{marginBottom:10}}>
-          Unidad: {data?.unidad ? `${data.unidad.torre}-${data.unidad.bloque}-${data.unidad.numero} (ID ${data.unidad.id})` : "—"} ·
-          &nbsp;Fecha de corte: {resumen.fecha_corte || "—"}
+      {/* Contenido imprimible */}
+      <div className="card ec-card" ref={printRef}>
+        {/* Encabezado */}
+        <h2 className="m-0">Estado de cuenta</h2>
+        <div className="muted mb-10">
+          Unidad: {data?.unidad
+            ? `${data.unidad.torre}-${data.unidad.bloque}-${data.unidad.numero} (ID ${data.unidad.id})`
+            : "—"} · Fecha de corte: {resumen.fecha_corte || "—"}
         </div>
 
         {/* KPIs */}
@@ -110,61 +167,71 @@ export default function EstadoCuentaPage() {
         </div>
 
         {/* Cuotas */}
-        <h3 style={{marginTop:16}}>Cuotas</h3>
-        <table className="au-table">
-          <thead>
-            <tr>
-              <th>Periodo</th><th>Concepto</th><th>Vencimiento</th>
-              <th>Total</th><th>Pagado</th><th>Saldo</th><th>Estado</th>
-            </tr>
-          </thead>
-          <tbody>
-            {loading ? (
-              <tr><td colSpan={7}>Cargando…</td></tr>
-            ) : (cuotas.length === 0 ? (
-              <tr><td colSpan={7}>Sin cuotas</td></tr>
-            ) : cuotas.map(c => {
-              const saldo = (Number(c.total_a_pagar)||0) - (Number(c.pagado)||0);
-              return (
-                <tr key={c.id}>
-                  <td>{c.periodo}</td>
-                  <td>{c.concepto}</td>
-                  <td>{c.vencimiento}</td>
-                  <td>{fmtBs(c.total_a_pagar)}</td>
-                  <td>{fmtBs(c.pagado)}</td>
-                  <td>{fmtBs(saldo)}</td>
-                  <td>{c.estado}</td>
-                </tr>
-              );
-            }))}
-          </tbody>
-        </table>
+        <div className="section-head">
+          <h3 className="mt-16 mb-6">Cuotas</h3>
+          <div className="muted">{cuotas.length} registro(s)</div>
+        </div>
+        <div className="table-wrap">
+          <table className="au-table">
+            <thead>
+              <tr>
+                <th>Periodo</th><th>Concepto</th><th>Vencimiento</th>
+                <th>Total</th><th>Pagado</th><th>Saldo</th><th>Estado</th>
+              </tr>
+            </thead>
+            <tbody>
+              {loading ? (
+                <tr><td colSpan={7}>Cargando…</td></tr>
+              ) : (cuotas.length === 0 ? (
+                <tr><td colSpan={7} className="txt-center muted p-12">Sin cuotas</td></tr>
+              ) : cuotas.map(c => {
+                const saldo = (Number(c.total_a_pagar)||0) - (Number(c.pagado)||0);
+                return (
+                  <tr key={c.id}>
+                    <td>{c.periodo}</td>
+                    <td>{c.concepto}</td>
+                    <td>{c.vencimiento}</td>
+                    <td>{fmtBs(c.total_a_pagar)}</td>
+                    <td>{fmtBs(c.pagado)}</td>
+                    <td className={saldo > 0 ? "neg" : "pos"}>{fmtBs(saldo)}</td>
+                    <td>{estadoChip(c.estado)}</td>
+                  </tr>
+                );
+              }))}
+            </tbody>
+          </table>
+        </div>
 
         {/* Pagos */}
-        <h3 style={{marginTop:16}}>Pagos</h3>
-        <table className="au-table">
-          <thead>
-            <tr>
-              <th>Fecha</th><th>Monto</th><th>Medio</th><th>Referencia</th><th>Periodo</th><th>Concepto</th>
-            </tr>
-          </thead>
-          <tbody>
-            {loading ? (
-              <tr><td colSpan={6}>Cargando…</td></tr>
-            ) : (pagos.length === 0 ? (
-              <tr><td colSpan={6}>Sin pagos</td></tr>
-            ) : pagos.map(p => (
-              <tr key={p.id}>
-                <td>{p.fecha_pago}</td>
-                <td>{fmtBs(p.monto)}</td>
-                <td>{p.medio}</td>
-                <td>{p.referencia}</td>
-                <td>{p.cuota_periodo || "—"}</td>
-                <td>{p.cuota_concepto || "—"}</td>
+        <div className="section-head">
+          <h3 className="mt-16 mb-6">Pagos</h3>
+          <div className="muted">{pagos.length} registro(s)</div>
+        </div>
+        <div className="table-wrap">
+          <table className="au-table">
+            <thead>
+              <tr>
+                <th>Fecha</th><th>Monto</th><th>Medio</th><th>Referencia</th><th>Periodo</th><th>Concepto</th>
               </tr>
-            )))}
-          </tbody>
-        </table>
+            </thead>
+            <tbody>
+              {loading ? (
+                <tr><td colSpan={6}>Cargando…</td></tr>
+              ) : (pagos.length === 0 ? (
+                <tr><td colSpan={6} className="txt-center muted p-12">Sin pagos</td></tr>
+              ) : pagos.map(p => (
+                <tr key={p.id}>
+                  <td>{p.fecha_pago}</td>
+                  <td>{fmtBs(p.monto)}</td>
+                  <td>{p.medio}</td>
+                  <td>{p.referencia}</td>
+                  <td>{p.cuota_periodo || "—"}</td>
+                  <td>{p.cuota_concepto || "—"}</td>
+                </tr>
+              )))}
+            </tbody>
+          </table>
+        </div>
       </div>
     </div>
   );
@@ -172,9 +239,9 @@ export default function EstadoCuentaPage() {
 
 function KPI({ title, value }) {
   return (
-    <div className="kpi" style={{ padding:12, border:"1px solid #1f2937", borderRadius:8, background:"#0f1422" }}>
-      <div style={{ fontSize:12, opacity:.8 }}>{title}</div>
-      <div style={{ fontSize:20, fontWeight:700 }}>{value}</div>
+    <div className="kpi">
+      <div className="kpi-title">{title}</div>
+      <div className="kpi-value">{value}</div>
     </div>
   );
 }

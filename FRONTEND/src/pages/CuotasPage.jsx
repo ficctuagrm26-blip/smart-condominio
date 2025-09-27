@@ -2,9 +2,10 @@ import { useEffect, useState } from "react";
 import { listCuotas, generarCuotas, pagarCuota, anularCuota } from "../api/cuotas";
 import GenerarCuotasModal from "./modals/GenerarCuotasModal";
 import PagarCuotaModal from "./modals/PagarCuotaModal";
+import "./CuotasPage.css";
 
 const ORDER_ALLOWED = new Set(["vencimiento", "updated_at", "total_a_pagar", "pagado"]);
-const isAnulada = (s) => ["ANULADA", "ANULADO"].includes(String(s || "").toUpperCase());
+const isAnulada = (s) => ["ANULADA"].includes(String(s || "").toUpperCase());
 
 export default function CuotasPage() {
   const [rows, setRows] = useState([]);
@@ -17,7 +18,7 @@ export default function CuotasPage() {
   const [search, setSearch] = useState("");
   const [ordering, setOrdering] = useState("-vencimiento"); // permitido por el backend
   const [f, setF] = useState({
-    torre: "",
+    manzana: "",
     unidad: "",
     periodo: "",
     concepto: "",
@@ -33,15 +34,16 @@ export default function CuotasPage() {
     try {
       const isActiveParam = f.is_active === "" ? undefined : f.is_active === "true";
 
+      // Backend (CuotaViewSet) ahora filtra por unidad__manzana/lote/numero.
       const params = {
         search,
         ordering,
-        periodo: f.periodo,
-        concepto: f.concepto,
-        estado: f.estado,        // ahora manda PAGADA/VENCIDA/ANULADA...
+        periodo: f.periodo || undefined,
+        concepto: f.concepto || undefined,
+        estado: f.estado || undefined,   // PENDIENTE/PARCIAL/PAGADA/VENCIDA/ANULADA
         is_active: isActiveParam,
-        torre: f.torre,
-        unidad: f.unidad,
+        "unidad__manzana": f.manzana || undefined,
+        unidad: f.unidad || undefined,   // id de unidad (opcional)
         page_size: 20,
       };
 
@@ -61,22 +63,22 @@ export default function CuotasPage() {
 
   useEffect(() => {
     load();
-  }, [ordering]); // al entrar y al cambiar ordering
+  }, [ordering]); // al montar y al cambiar ordering
 
   function toggleOrder(field) {
-    if (!ORDER_ALLOWED.has(field)) return; // ignorar orden no permitido
+    if (!ORDER_ALLOWED.has(field)) return;
     setOrdering((o) => (o === field ? `-${field}` : field));
   }
 
   return (
     <div className="page">
-      <div className="card au-toolbar" style={{ marginBottom: 12 }}>
-        <div className="au-toolbar__form" onSubmit={(e) => e.preventDefault()}>
+      <div className="card au-toolbar mb-12">
+        <form className="au-toolbar__form" onSubmit={(e) => { e.preventDefault(); load(); }}>
           <div className="au-field">
             <label className="au-label">Buscar</label>
             <input
               className="au-input"
-              placeholder="torre/bloque/número/periodo/concepto"
+              placeholder="manzana/lote/número/periodo/concepto"
               value={search}
               onChange={(e) => setSearch(e.target.value)}
             />
@@ -96,9 +98,15 @@ export default function CuotasPage() {
           />
           <input
             className="au-input"
-            placeholder="Torre"
-            value={f.torre}
-            onChange={(e) => setF({ ...f, torre: e.target.value })}
+            placeholder="Manzana"
+            value={f.manzana}
+            onChange={(e) => setF({ ...f, manzana: e.target.value })}
+          />
+          <input
+            className="au-input"
+            placeholder="ID Unidad (opcional)"
+            value={f.unidad}
+            onChange={(e) => setF({ ...f, unidad: e.target.value })}
           />
 
           {/* ESTADO: usa las claves que tu backend acepta */}
@@ -125,14 +133,15 @@ export default function CuotasPage() {
             <option value="false">Solo inactivas</option>
           </select>
 
-          <button className="au-button" onClick={() => load()}>
+          <button className="au-button" type="submit">
             Aplicar
           </button>
           <button
             className="au-button au-button--ghost"
+            type="button"
             onClick={() => {
               setF({
-                torre: "",
+                manzana: "",
                 unidad: "",
                 periodo: "",
                 concepto: "",
@@ -147,10 +156,10 @@ export default function CuotasPage() {
           </button>
 
           <div className="au-toolbar__spacer" />
-          <button className="au-button" onClick={() => setShowGen(true)}>
+          <button className="au-button" type="button" onClick={() => setShowGen(true)}>
             + Generar cuotas
           </button>
-        </div>
+        </form>
       </div>
 
       <div className="card">
@@ -158,12 +167,11 @@ export default function CuotasPage() {
           <thead>
             <tr>
               <th>Unidad</th>
-              {/* 'periodo' NO es ordenable en el backend → sin onClick */}
               <th>Periodo</th>
               <th>Concepto</th>
-              <th onClick={() => toggleOrder("vencimiento")}>Vencimiento</th>
-              <th onClick={() => toggleOrder("total_a_pagar")}>Total</th>
-              <th onClick={() => toggleOrder("pagado")}>Pagado</th>
+              <th className="is-clickable" onClick={() => toggleOrder("vencimiento")}>Vencimiento</th>
+              <th className="is-clickable" onClick={() => toggleOrder("total_a_pagar")}>Total</th>
+              <th className="is-clickable" onClick={() => toggleOrder("pagado")}>Pagado</th>
               <th>Saldo</th>
               <th>Estado</th>
               <th>Acciones</th>
@@ -172,33 +180,37 @@ export default function CuotasPage() {
           <tbody>
             {loading ? (
               <tr>
-                <td colSpan={9}>Cargando…</td>
+                <td colSpan={9} className="text-center">Cargando…</td>
               </tr>
             ) : rows.length === 0 ? (
               <tr>
-                <td colSpan={9}>Sin resultados</td>
+                <td colSpan={9} className="text-center text-muted">Sin resultados</td>
               </tr>
             ) : (
               rows.map((r) => {
-                const saldo =
-                  (Number(r.total_a_pagar) || 0) - (Number(r.pagado) || 0);
+                const saldoNum = Number(r.saldo ?? ((Number(r.total_a_pagar) || 0) - (Number(r.pagado) || 0)));
+                const estado = String(r.estado || "");
+                const estadoClass =
+                  estado === "PAGADA" ? "badge badge--success" :
+                  estado === "VENCIDA" ? "badge badge--danger" :
+                  estado === "PARCIAL" ? "badge badge--warning" :
+                  estado === "ANULADA" ? "badge badge--dark" : "badge";
                 return (
                   <tr key={r.id}>
-                    <td>
-                      {r.unidad?.torre}-{r.unidad?.bloque}-{r.unidad?.numero}
-                    </td>
+                    <td>{r.unidad_display || r.unidad || "-"}</td>
                     <td>{r.periodo}</td>
                     <td>{r.concepto}</td>
                     <td>{r.vencimiento}</td>
                     <td>{Number(r.total_a_pagar).toFixed(2)}</td>
                     <td>{Number(r.pagado).toFixed(2)}</td>
-                    <td>{Number(saldo).toFixed(2)}</td>
-                    <td>{r.estado}</td>
-                    <td style={{ display: "flex", gap: 8 }}>
+                    <td>{saldoNum.toFixed(2)}</td>
+                    <td><span className={estadoClass}>{estado}</span></td>
+                    <td className="actions">
                       <button
                         className="au-button"
                         disabled={isAnulada(r.estado)}
                         onClick={() => setCuotaToPay(r)}
+                        title="Registrar pago"
                       >
                         Pagar
                       </button>
@@ -216,6 +228,7 @@ export default function CuotasPage() {
                             alert(e?.detail || "No se pudo anular la cuota");
                           }
                         }}
+                        title="Anular cuota"
                       >
                         Anular
                       </button>
@@ -227,14 +240,14 @@ export default function CuotasPage() {
           </tbody>
         </table>
 
-        <div className="pager" style={{ display: "flex", gap: 8, padding: 12 }}>
+        <div className="pager">
           <button className="au-button" disabled={!prev} onClick={() => load(prev)}>
             Anterior
           </button>
           <button className="au-button" disabled={!next} onClick={() => load(next)}>
             Siguiente
           </button>
-          <div style={{ marginLeft: "auto" }}>Total: {count}</div>
+          <div className="ml-auto text-muted">Total: {count}</div>
         </div>
       </div>
 

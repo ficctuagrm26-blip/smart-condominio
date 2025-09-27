@@ -1,0 +1,56 @@
+/* src/pages/VehiculosPage.css */
+.vehiculos-page {
+  max-width: 1180px;
+  margin: 0 auto;
+  width: 92%;
+}
+.card {
+  background: var(--card);
+  border: 1px solid var(--border);
+  border-radius: 12px;
+  padding: 16px;
+  margin: 16px 0;
+}
+.card__title {
+  margin-bottom: 12px;
+}
+.vehiculo-form {
+  margin-top: 8px;
+}
+.vehiculo-form__header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  margin-bottom: 8px;
+}
+.vehiculo-form__footer {
+  display: flex;
+  gap: 8px;
+  margin-top: 12px;
+}
+.chip {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  padding: 4px 8px;
+  border-radius: 999px;
+  border: 1px solid var(--border);
+  background: #0c1323;
+  font-size: 12px;
+}
+.chip--pendiente {
+  background: #1f2937;
+  color: #e5e7eb;
+}
+.chip--aprobada {
+  background: #064e3b;
+  color: #d1fae5;
+}
+.chip--rechazada {
+  background: #3f1d1d;
+  color: #fecaca;
+}
+.chip--cancelada {
+  background: #3a2a12;
+  color: #fde68a;
+}

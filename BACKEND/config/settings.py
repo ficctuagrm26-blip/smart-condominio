@@ -42,6 +42,7 @@ INSTALLED_APPS = [
     "django_filters",
     "rest_framework",
     "rest_framework.authtoken",
+    'storages',  # ← SOLO si usarás S3
     "smartcondominio.apps.SmartCondominioConfig",
    
 ]
@@ -167,5 +168,19 @@ SECURE_PROXY_SSL_HEADER = ('HTTP_X_FORWARDED_PROTO', 'https')
 # === Archivos de usuario (MEDIA) ===
 MEDIA_URL = "/media/"
 MEDIA_ROOT = BASE_DIR / "media"
+# === Media en prod: S3 (opcional) ===
+STORAGE_BACKEND = os.getenv("STORAGE_BACKEND", "local")  # "local" | "s3"
+if STORAGE_BACKEND == "s3":
+    DEFAULT_FILE_STORAGE = "storages.backends.s3boto3.S3Boto3Storage"
+    AWS_ACCESS_KEY_ID = os.getenv("AWS_ACCESS_KEY_ID", "")
+    AWS_SECRET_ACCESS_KEY = os.getenv("AWS_SECRET_ACCESS_KEY", "")
+    AWS_STORAGE_BUCKET_NAME = os.getenv("AWS_STORAGE_BUCKET_NAME", "")
+    AWS_S3_REGION_NAME = os.getenv("AWS_S3_REGION_NAME", "us-east-1")
+    AWS_S3_FILE_OVERWRITE = False
+    AWS_DEFAULT_ACL = None
+    AWS_QUERYSTRING_AUTH = True
 
 # WhiteNoise sirve SOLO estáticos, no media. Para prod conviene S3; en dev servimos con Django.
+
+STRIPE_API_KEY = os.getenv("STRIPE_API_KEY", "")
+STRIPE_WEBHOOK_SECRET = os.getenv("STRIPE_WEBHOOK_SECRET", "")

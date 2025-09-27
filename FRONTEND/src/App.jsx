@@ -11,22 +11,26 @@ import AdminUsers from "./pages/AdminUsers";
 import RolesPermisos from "./pages/RolesPermisos";
 import UnitsPage from "./pages/UnitsPage";
 import CuotasPage from "./pages/CuotasPage";
-import InfraccionesPage from "./pages/InfraccionesPagre";
+import InfraccionesPage from "./pages/InfraccionesPage";
 import EstadoCuentaPage from "./pages/EstadoCuentaPage";
 import AdminAvisosPage from "./pages/AdminAvisosPage";
 import MisAvisosPage from "./pages/MisAvisosPage";
 
 import AdminTareasPage from "./pages/AdminTareasPage";
 import MisTareasPage from "./pages/MisTareasPage";
-
+import RolesPage from "./pages/Roles";
+import Permisos from "./pages/Permisos";
 // NUEVO
 import AsignarTareasPage from "./pages/AsignarTareasPage";
-
+import VisitsPage from "./pages/VisitsPage";
+import StaffPage from "./pages/StaffPage";
 // Áreas comunes
 import AreasDisponibilidad from "./pages/AreasDisponibilidad"; // CU16
 import AreaReservaNueva from "./pages/AreaReservaNueva"; // CU17
 import AdminAreasPage from "./pages/AdminAreasPage"; // gestión de áreas
 import AdminAreaReglasPage from "./pages/AdminAreaReglasPage"; // CU19 (NUEVO)
+import VehiculosPage from "./pages/VehiculosPage";
+import SolicitudesVehiculoPage from "./pages/SolicitudesVehiculoPage";
 
 export default function App() {
   return (
@@ -58,10 +62,26 @@ export default function App() {
             }
           />
           <Route
-            path="/admin/roles-permisos"
+            path="/admin/roles"
             element={
               <RequireRole roles={["ADMIN"]}>
-                <RolesPermisos />
+                <RolesPage />
+              </RequireRole>
+            }
+          />
+          <Route
+            path="/admin/permisos"
+            element={
+              <RequireRole roles={["ADMIN"]}>
+                <Permisos />
+              </RequireRole>
+            }
+          />
+          <Route
+            path="/personal"
+            element={
+              <RequireRole roles={["ADMIN"]}>
+                <StaffPage />
               </RequireRole>
             }
           />
@@ -72,6 +92,15 @@ export default function App() {
             element={
               <RequireRole allow={["ADMIN"]}>
                 <UnitsPage />
+              </RequireRole>
+            }
+          />
+          {/* Visitas: deja que entren ADMIN/STAFF/RESIDENT */}
+          <Route
+            path="visits"
+            element={
+              <RequireRole allow={["ADMIN", "STAFF", "RESIDENT"]}>
+                <VisitsPage />
               </RequireRole>
             }
           />
@@ -148,6 +177,25 @@ export default function App() {
             element={
               <RequireRole allow={["ADMIN"]}>
                 <AdminAreaReglasPage />
+              </RequireRole>
+            }
+          />
+          {/* Vehículos (usuarios, también puede ver admin/staff) */}
+          <Route
+            path="vehiculos"
+            element={
+              <RequireRole allow={["ADMIN", "STAFF", "RESIDENT"]}>
+                <VehiculosPage />
+              </RequireRole>
+            }
+          />
+
+          {/* Solicitudes de Vehículo (revisión) – ADMIN/STAFF */}
+          <Route
+            path="admin/solicitudes-vehiculo"
+            element={
+              <RequireRole allow={["ADMIN", "STAFF"]}>
+                <SolicitudesVehiculoPage />
               </RequireRole>
             }
           />

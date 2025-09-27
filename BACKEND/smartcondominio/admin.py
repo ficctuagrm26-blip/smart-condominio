@@ -1,5 +1,5 @@
 from django.contrib import admin
-from .models import Profile, Unidad
+from .models import Profile, Unidad, Visitor, Visit
 
 @admin.register(Profile)
 class ProfileAdmin(admin.ModelAdmin):
@@ -9,16 +9,19 @@ class ProfileAdmin(admin.ModelAdmin):
 
 @admin.register(Unidad)
 class UnidadAdmin(admin.ModelAdmin):
-    list_display = (      # columnas que se mostrarán en la tabla del admin
-        "id", "torre", "bloque", "numero",
-        "tipo", "estado", "propietario", "residente", "is_active"
+    list_display = (
+        "id", "manzana", "lote", "numero",
+        "tipo", "estado", "propietario", "residente",
+        "is_active", "updated_at",
     )
-    list_filter = (       # filtros en la barra lateral
-        "torre", "tipo", "estado", "is_active"
+    list_filter = ("manzana", "lote", "estado", "tipo", "is_active")
+    search_fields = (
+        "manzana", "lote", "numero",
+        "propietario__first_name", "propietario__last_name",
+        "residente__first_name", "residente__last_name",
     )
-    search_fields = (     # campos por los que se podrá buscar en el admin
-        "torre", "bloque", "numero"
-    )
+    ordering = ("manzana", "lote", "numero")
+    autocomplete_fields = ("propietario", "residente")
 from .models import Aviso
 
 @admin.register(Aviso)
@@ -29,19 +32,21 @@ class AvisoAdmin(admin.ModelAdmin):
     filter_horizontal = ("unidades", "roles")
 
 from .models import Tarea, TareaComentario
-
 @admin.register(Tarea)
 class TareaAdmin(admin.ModelAdmin):
     list_display = ("id", "titulo", "prioridad", "estado", "asignado_a", "asignado_a_rol", "unidad", "fecha_limite", "creado_por", "is_active")
     list_filter = ("prioridad", "estado", "asignado_a_rol", "is_active")
-    search_fields = ("titulo", "descripcion", "asignado_a__username", "creado_por__username", "unidad__torre", "unidad__numero")
+    search_fields = (
+        "titulo", "descripcion",
+        "asignado_a__username", "creado_por__username",
+        "unidad__manzana", "unidad__lote", "unidad__numero",  # <-- antes era unidad__torre
+    )
 
 @admin.register(TareaComentario)
 class TareaComentarioAdmin(admin.ModelAdmin):
     list_display = ("id", "tarea", "autor", "created_at")
     search_fields = ("tarea__titulo", "autor__username", "cuerpo")
     
-from django.contrib import admin
 from .models import AreaComun, AreaDisponibilidad, ReservaArea
 
 @admin.register(AreaComun)
@@ -60,3 +65,31 @@ class ReservaAreaAdmin(admin.ModelAdmin):
     list_display = ("area","fecha_inicio","fecha_fin","estado","usuario","unidad","monto_total")
     list_filter = ("estado","area")
     search_fields = ("nota",)
+    
+@admin.register(Visitor)
+class VisitorAdmin(admin.ModelAdmin):
+    list_display = ("full_name", "doc_type", "doc_number", "phone")
+    search_fields = ("full_name", "doc_number")
+
+@admin.register(Visit)
+class VisitAdmin(admin.ModelAdmin):
+    list_display = ("id","visitor","unit","host_resident","status","entry_at","exit_at","created_at")
+    list_filter = ("status","created_at")
+    search_fields = ("visitor__full_name","visitor__doc_number","vehicle_plate","purpose")
+
+
+
+from django.contrib import admin
+from .models import Vehiculo, SolicitudVehiculo
+
+@admin.register(Vehiculo)
+class VehiculoAdmin(admin.ModelAdmin):
+    list_display = ("placa", "propietario", "unidad", "tipo", "activo", "autorizado_en")
+    list_filter = ("activo", "tipo", "unidad")
+    search_fields = ("placa", "propietario__username", "propietario__first_name", "propietario__last_name")
+
+@admin.register(SolicitudVehiculo)
+class SolicitudVehiculoAdmin(admin.ModelAdmin):
+    list_display = ("placa", "solicitante", "estado", "unidad", "created_at", "revisado_en")
+    list_filter = ("estado", "unidad", "tipo")
+    search_fields = ("placa", "solicitante__username", "solicitante__first_name", "solicitante__last_name")

@@ -2,8 +2,11 @@ from django.urls import path
 from .views_api import (
     RegisterView, me, AdminUserViewSet, me_update, change_password,
     RolViewSet, PermissionViewSet, UnidadViewSet, CuotaViewSet, PagoViewSet,
-    InfraccionViewSet, EstadoCuentaView, EstadoCuentaExportCSV, TareaViewSet  # <-- ya lo importaste
+    InfraccionViewSet, EstadoCuentaView, EstadoCuentaExportCSV, TareaViewSet, StaffViewSet, VisitorViewSet, VisitViewSet # <-- ya lo importaste
 )
+from django.urls import path, include
+from rest_framework.routers import DefaultRouter
+from .views_api import VehiculoViewSet, SolicitudVehiculoViewSet
 from rest_framework.routers import DefaultRouter
 from rest_framework.authtoken.views import obtain_auth_token
 from .views_api import AvisoViewSet,AreaComunViewSet  # importa el nuevo viewset
@@ -18,6 +21,13 @@ router.register(r'infracciones', InfraccionViewSet, basename='infracciones')
 router.register(r'avisos', AvisoViewSet, basename='avisos')
 router.register(r'tareas', TareaViewSet, basename='tareas')
 router.register(r'areas-comunes', AreaComunViewSet, basename='area-comun')
+router.register(r'staff', StaffViewSet, basename='staff')
+router.register(r"visitors", VisitorViewSet, basename="visitors")
+router.register(r"visits", VisitViewSet, basename="visits")
+router.register(r"vehiculos", VehiculoViewSet, basename="vehiculos")
+router.register(r"solicitudes-vehiculo", SolicitudVehiculoViewSet, basename="solicitudes-vehiculo")
+
+
 
 
 urlpatterns = [
