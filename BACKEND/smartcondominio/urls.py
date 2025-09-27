@@ -2,7 +2,7 @@ from django.urls import path
 from .views_api import (
     RegisterView, me, AdminUserViewSet, me_update, change_password,
     RolViewSet, PermissionViewSet, UnidadViewSet, CuotaViewSet, PagoViewSet,
-    InfraccionViewSet, EstadoCuentaView, EstadoCuentaExportCSV, TareaViewSet, StaffViewSet, VisitorViewSet, VisitViewSet # <-- ya lo importaste
+    InfraccionViewSet, EstadoCuentaView, EstadoCuentaExportCSV, TareaViewSet, StaffViewSet, VisitorViewSet, VisitViewSet, MockCheckoutView, MockUploadReceiptView, MockVerifyReceiptView # <-- ya lo importaste
 )
 from rest_framework.routers import DefaultRouter
 from rest_framework.authtoken.views import obtain_auth_token
@@ -24,6 +24,7 @@ router.register(r"visits", VisitViewSet, basename="visits")
 
 
 
+
 urlpatterns = [
     # Auth / perfil
     path('auth/register/', RegisterView.as_view(), name='register'),
@@ -37,6 +38,9 @@ urlpatterns = [
     # 👇👇 NUEVOS ENDPOINTS DE ESTADO DE CUENTA
     path('estado-cuenta/', EstadoCuentaView.as_view(), name='estado-cuenta'),
     path('estado-cuenta/export/', EstadoCuentaExportCSV.as_view(), name='estado-cuenta-export'),
+    path('pagos/mock/checkout/', MockCheckoutView.as_view(), name='mock-checkout'),
+    path('pagos/mock/upload-receipt/', MockUploadReceiptView.as_view(), name='mock-upload-receipt'),
+    path('pagos/mock/verify/', MockVerifyReceiptView.as_view(), name='mock-verify'),
 ]
 
 urlpatterns += router.urls

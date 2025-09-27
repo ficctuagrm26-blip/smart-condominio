@@ -634,3 +634,73 @@ class Visit(models.Model):
         self.exit_at = timezone.now()
         self.exit_by = user
         self.status = "SALIDO"
+
+
+#ONLINEPAGO
+class OnlinePaymentIntent(models.Model):
+    PROVIDERS = [("MOCK", "Mock")]
+    ESTADOS = [("CREATED","Creada"),("PENDING","Pendiente"),("PAID","Pagada"),
+               ("FAILED","Fallida"),("CANCELLED","Cancelada")]
+
+    cuota = models.ForeignKey(Cuota, on_delete=models.PROTECT, related_name="intentos_online")
+    amount = models.DecimalField(max_digits=10, decimal_places=2)
+    currency = models.CharField(max_length=10, default="BOB")
+    provider = models.CharField(max_length=10, choices=PROVIDERS, default="MOCK")
+    provider_id = models.CharField(max_length=120, blank=True)
+    status = models.CharField(max_length=12, choices=ESTADOS, default="CREATED")
+    confirmation_url = models.URLField(blank=True)
+    qr_payload = models.TextField(blank=True)
+    metadata = models.JSONField(default=dict, blank=True)
+
+    creado_por = models.ForeignKey(settings.AUTH_USER_MODEL, null=True, on_delete=models.SET_NULL)
+    created_at = models.DateTimeField(auto_now_add=True)
+    paid_at = models.DateTimeField(null=True, blank=True)
+
+    class Meta:
+        ordering = ["-created_at"]
+        indexes = [
+            models.Index(fields=["status"]),
+            models.Index(fields=["created_at"]),
+            models.Index(fields=["provider_id"]),
+        ]
+
+    def __str__(self):
+        return f"Intent #{self.id} · Cuota {self.cuota_id} · {self.status}"
+
+    def clean(self):
+        from django.core.exceptions import ValidationError
+        if self.amount is None or self.amount <= Decimal("0"):
+            raise ValidationError({"amount": "El monto debe ser mayor a 0."})
+        if not self.currency:
+            raise ValidationError({"currency": "Moneda requerida."})
+
+    @property
+    def is_paid(self) -> bool:
+        return self.status == "PAID"
+
+    def mark_paid(self):
+        self.status = "PAID"
+        self.paid_at = timezone.now()
+
+class MockReceipt(models.Model):
+    intent = models.ForeignKey(OnlinePaymentIntent, on_delete=models.CASCADE, related_name="receipts")
+    receipt_url = models.URLField(blank=True)
+    amount = models.DecimalField(max_digits=10, decimal_places=2, null=True, blank=True)
+    reference = models.CharField(max_length=120, blank=True)
+    bank_name = models.CharField(max_length=80, blank=True)
+    uploaded_by = models.ForeignKey(User, on_delete=models.SET_NULL, null=True)
+    created_at = models.DateTimeField(auto_now_add=True)
+
+    class Meta:
+        ordering = ["-created_at"]
+        indexes = [
+            models.Index(fields=["created_at"]),
+        ]
+
+    def __str__(self):
+        return f"Receipt #{self.id} · Intent {self.intent_id} · {self.reference or 's/ref'}"
+
+    def clean(self):
+        from django.core.exceptions import ValidationError
+        if self.amount is not None and self.amount <= Decimal("0"):
+            raise ValidationError({"amount": "El monto (si se informa) debe ser > 0."})

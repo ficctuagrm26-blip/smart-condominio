@@ -1,12 +1,20 @@
 from rest_framework import serializers
+import re
 from django.contrib.auth import get_user_model, authenticate, password_validation
 from django.db import transaction
 from django.core.exceptions import ObjectDoesNotExist
 from decimal import Decimal
-from .models import Profile, Rol, Unidad, Cuota, Pago, Infraccion, StaffKind, Visitor, Visit
+from .models import Profile, Rol, Unidad, Cuota, Pago, Infraccion, StaffKind, Visitor, Visit, MockReceipt, OnlinePaymentIntent
 from django.contrib.auth.models import Permission  # 👈 necesario para PermissionBriefSerializer
 User = get_user_model()
+PERIODO_RE = re.compile(r"^\d{4}-(0[1-9]|1[0-2])$")
 
+def value_gt(a, b):
+    """Retorna True si a > b como Decimal."""
+    try:
+        return Decimal(a) > Decimal(b)
+    except Exception:
+        return False
 # ---------- util ----------
 def _resolve_role(role_id=None, role_code=None, default_code="RESIDENT"):
     try:
@@ -170,7 +178,7 @@ class AdminUserSerializer(serializers.ModelSerializer):
                 # staff_kind_id explícito
                 if staff_kind_id:
                     try:
-                        sk_obj = StaffKind.objects.get(pk=staff_kind_id, is_active=True)
+                        sk_obj = StaffKind.objects.get(pk=staff_kind_id, active=True)
                     except StaffKind.DoesNotExist:
                         raise serializers.ValidationError({"staff_kind_id": "Tipo de personal inválido."})
                 # si viene null, se limpia (permite quitar FK y usar texto)
@@ -862,3 +870,47 @@ class VisitSerializer(serializers.ModelSerializer):
         instance.updated_by = user
         instance.save()
         return instance
+    
+    
+class OnlinePaymentIntentSerializer(serializers.ModelSerializer):
+    class Meta:
+        model = OnlinePaymentIntent
+        fields = ["id","cuota","amount","currency","provider","status",
+                  "confirmation_url","qr_payload","provider_id","created_at","paid_at"]
+        read_only_fields = ["status","confirmation_url","provider_id","created_at","paid_at"]
+
+    def validate(self, attrs):
+        cuota = attrs.get("cuota") or getattr(getattr(self, "instance", None), "cuota", None)
+        amount = attrs.get("amount") or getattr(getattr(self, "instance", None), "amount", None)
+        if not cuota:
+            raise serializers.ValidationError({"cuota": "Requerida."})
+        if not cuota.is_active:
+            raise serializers.ValidationError({"cuota": "La cuota está inactiva/anulada."})
+        if Decimal(cuota.saldo) <= 0:
+            raise serializers.ValidationError({"cuota": "La cuota no tiene saldo pendiente."})
+        if amount is None or Decimal(amount) <= 0:
+            raise serializers.ValidationError({"amount": "Debe ser > 0."})
+        if Decimal(amount) > Decimal(cuota.saldo):
+            raise serializers.ValidationError({"amount": "No puede exceder el saldo pendiente."})
+        return attrs
+
+class MockReceiptSerializer(serializers.ModelSerializer):
+    class Meta:
+        model = MockReceipt
+        fields = ["id","intent","receipt_url","amount","reference","bank_name","uploaded_by","created_at"]
+        read_only_fields = ["uploaded_by","created_at"]
+
+    def validate(self, attrs):
+        intent = attrs.get("intent")
+        if not intent:
+            raise serializers.ValidationError({"intent": "Requerido."})
+        if intent.status not in ("CREATED","PENDING"):
+            raise serializers.ValidationError({"intent": "El intento no está en estado válido para adjuntar comprobante."})
+
+        amount = attrs.get("amount")
+        if amount is not None and Decimal(amount) <= 0:
+            raise serializers.ValidationError({"amount": "Si se informa, debe ser > 0."})
+
+        if not attrs.get("receipt_url") and not attrs.get("reference"):
+            raise serializers.ValidationError({"receipt_url": "Debes informar receipt_url o reference."})
+        return attrs

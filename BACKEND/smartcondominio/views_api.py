@@ -1,4 +1,5 @@
 from django.contrib.auth import get_user_model
+from django.shortcuts import get_object_or_404
 from rest_framework.views import APIView
 from django.db import IntegrityError
 from django.db.models import Q, Sum, F, DecimalField, ExpressionWrapper
@@ -14,7 +15,7 @@ from django.contrib.auth.models import Permission
 from django_filters.rest_framework import DjangoFilterBackend
 from rest_framework.filters import SearchFilter, OrderingFilter
 from datetime import date
-from .models import Rol, Profile, Unidad, Cuota, Pago, Infraccion, Visitor, Visit
+from .models import Rol, Profile, Unidad, Cuota, Pago, Infraccion, Visitor, Visit, OnlinePaymentIntent, MockReceipt
 from .permissions import IsAdmin
 from .permissions import user_role_code, has_role_permission, IsStaffGuardOrAdmin
 from .serializers import (
@@ -24,20 +25,21 @@ from .serializers import (
     MeUpdateSerializer,
     ChangePasswordSerializer,
     RolSimpleSerializer,
-    PermissionBriefSerializer, UnidadSerializer, CuotaSerializer, PagoCreateSerializer, PagoSerializer,GenerarCuotasSerializer, InfraccionSerializer,PagoEstadoCuentaSerializer,UnidadBriefECSerializer, VisitorSerializer, VisitSerializer   # 👈 lo importamos (definido en serializers.py)
+    PermissionBriefSerializer, UnidadSerializer, CuotaSerializer, PagoCreateSerializer, PagoSerializer,GenerarCuotasSerializer, InfraccionSerializer,PagoEstadoCuentaSerializer,UnidadBriefECSerializer, VisitorSerializer, VisitSerializer, OnlinePaymentIntentSerializer, MockReceiptSerializer   # 👈 lo importamos (definido en serializers.py)
 )
 from .models import Aviso, Unidad
 from .serializers import AvisoSerializer
 from .permissions import IsAdmin, user_role_code, VisitAccess, IsStaff
 from django.utils import timezone
 from django.db import models
-from .models import Tarea, TareaComentario  # + ya tienes Unidad, etc.
+from django.conf import settings
+from .models import Tarea, TareaComentario, OnlinePaymentIntent, MockReceipt  # + ya tienes Unidad, etc.
 from .serializers import (
     # ... lo que ya tienes ...
     TareaSerializer, TareaWriteSerializer, TareaComentarioSerializer,
 )
 from .permissions import IsAdmin, IsStaff
-
+import uuid, io
 User = get_user_model()
 
 # 👤 Registrar usuario
@@ -552,7 +554,8 @@ class EstadoCuentaView(APIView):
 
     def get_user_unidades(self, user):
         # Unidades donde es propietario o residente
-        return Unidad.objects.filter(Q(propietario=user) | Q(residente=user)).order_by("torre", "bloque", "numero")
+       return Unidad.objects.filter(Q(propietario=user) | Q(residente=user)).order_by("manzana", "lote", "numero")
+
 
     def get(self, request):
         user = request.user
@@ -582,7 +585,7 @@ class EstadoCuentaView(APIView):
             total_pagado=Sum("pagado"),
             total_cobrado=Sum("total_a_pagar"),
         )
-        cuotas_pendientes = cuotas_qs.filter(estado__in=["PENDIENTE", "VENCIDO", "PARCIAL"]).count()
+        cuotas_pendientes = cuotas_qs.filter(estado__in=["PENDIENTE", "VENCIDA", "PARCIAL"]).count()
         ultimo_pago = pagos_qs.first()
 
         data = {
@@ -607,7 +610,7 @@ class EstadoCuentaExportCSV(APIView):
     permission_classes = [IsAuthenticated]
 
     def get_user_unidades(self, user):
-        return Unidad.objects.filter(Q(propietario=user) | Q(residente=user)).order_by("torre", "bloque", "numero")
+        return Unidad.objects.filter(Q(propietario=user) | Q(residente=user)).order_by("manzana", "lote", "numero")
 
     def get(self, request):
         user = request.user
@@ -632,7 +635,7 @@ class EstadoCuentaExportCSV(APIView):
         resp["Content-Disposition"] = f'attachment; filename="{filename}"'
         writer = csv.writer(resp)
 
-        writer.writerow([f"Estado de cuenta - Unidad {unidad.torre}-{unidad.bloque}-{unidad.numero} (ID {unidad.id})"])
+        writer.writerow([f"Estado de cuenta - Unidad {str(unidad)} (ID {unidad.id})"])
         writer.writerow(["Fecha de corte", date.today().isoformat()])
         writer.writerow([])
 
@@ -1013,3 +1016,125 @@ class VisitViewSet(viewsets.ModelViewSet):
         visit.updated_by = request.user
         visit.save()
         return Response(VisitSerializer(visit, context={"request": request}).data)
+
+
+def _unidad_display(u):
+    b = f"-{u.lote}" if u.lote else ""
+    return f"Mza {u.manzana}{b}-{u.numero}"
+
+class MockCheckoutView(APIView):
+    """
+    CU11 - Crear intento de pago (QR o “tarjeta” mock).
+    POST { "cuota": <id>, "medio": "QR"|"CARD" }
+    -> Devuelve confirmation_url y, si medio=QR, qr_payload (igual al link).
+    """
+    authentication_classes = [TokenAuthentication]
+    permission_classes = [IsAuthenticated]
+
+    def post(self, request):
+        user = request.user
+        cuota = get_object_or_404(Cuota, pk=request.data.get("cuota"), is_active=True)
+
+        # seguridad: la cuota debe ser del usuario (propietario o residente)
+        if not Unidad.objects.filter(id=cuota.unidad_id).filter(Q(propietario=user)|Q(residente=user)).exists():
+            return Response({"detail":"No autorizado sobre esta cuota."}, status=403)
+
+        # sin saldo → nada que pagar
+        if cuota.estado == "PAGADA" or cuota.saldo <= 0:
+            return Response({"detail":"No hay saldo pendiente."}, status=400)
+
+        medio = (request.data.get("medio") or "QR").upper()
+        intent = OnlinePaymentIntent.objects.create(
+            cuota=cuota,
+            amount=cuota.saldo,
+            currency="BOB",
+            provider="MOCK",
+            status="PENDING",
+            creado_por=user,
+            metadata={"unidad_display": _unidad_display(cuota.unidad), "medio": medio},
+        )
+        token = uuid.uuid4().hex
+
+        # Usa SITE_URL si existe; si no, arma la base con la propia request
+        base_url = getattr(settings, "SITE_URL", None) or request.build_absolute_uri("/").rstrip("/")
+
+        pay_url = f"{base_url}/mock-pay?intent={intent.id}&token={token}"
+        intent.provider_id = token
+        intent.confirmation_url = pay_url
+        intent.qr_payload = pay_url if medio == "QR" else ""
+        intent.save()
+
+        return Response(OnlinePaymentIntentSerializer(intent).data, status=201)
+
+
+class MockUploadReceiptView(APIView):
+    """
+    Residente sube comprobante del pago (transfer/QR/depósito) para verificación.
+    POST { "intent": <id>, "receipt_url": "...", "amount": "200.00", "reference": "ABC", "bank_name": "Banco X" }
+    """
+    authentication_classes = [TokenAuthentication]
+    permission_classes = [IsAuthenticated]
+
+    def post(self, request):
+        intent = get_object_or_404(
+            OnlinePaymentIntent, pk=request.data.get("intent"),
+            status__in=["CREATED","PENDING"]
+        )
+
+        # dueño del intent o admin
+        if not (request.user.is_superuser or intent.creado_por_id == request.user.id):
+            return Response({"detail":"No autorizado."}, status=403)
+
+        ser = MockReceiptSerializer(data=request.data)
+        ser.is_valid(raise_exception=True)
+        rec = ser.save(uploaded_by=request.user)
+        return Response(MockReceiptSerializer(rec).data, status=201)
+
+
+class MockVerifyReceiptView(APIView):
+    """
+    Admin/Staff revisa y aprueba/rechaza comprobante.
+    POST { "receipt_id": <id>, "approve": true|false }
+    -> Si aprueba: crea Pago real y marca intent como PAID.
+    """
+    authentication_classes = [TokenAuthentication]
+    permission_classes = [IsAuthenticated]
+
+    def post(self, request):
+        is_admin_or_staff = (getattr(request.user,"is_superuser",False) or user_role_code(request.user) in {"ADMIN","STAFF"})
+        if not is_admin_or_staff:
+            return Response({"detail":"No autorizado."}, status=403)
+
+        approve = bool(request.data.get("approve"))
+        rec = get_object_or_404(MockReceipt, pk=request.data.get("receipt_id"))
+        intent = rec.intent
+
+        if not approve:
+            if intent.status != "PAID":
+                intent.status = "FAILED"
+                intent.save(update_fields=["status"])
+            return Response({"detail":"Comprobante rechazado."})
+
+        # Idempotencia
+        if intent.status == "PAID":
+            return Response({"detail":"Ya estaba aprobado."}, status=200)
+
+        # Crea Pago con tu flujo estándar
+        monto = rec.amount or intent.amount
+        ser = PagoCreateSerializer(
+            data={
+                "cuota": intent.cuota_id,
+                "monto": monto,
+                "medio": "TRANSFERENCIA",  # o "OTRO"
+                "referencia": rec.reference or f"MOCK-{intent.provider_id}",
+            },
+            context={"request": request}
+        )
+        ser.is_valid(raise_exception=True)
+        pago = ser.save()
+
+        intent.status = "PAID"
+        intent.paid_at = timezone.now()
+        intent.save(update_fields=["status","paid_at"])
+
+        return Response({"detail":"Aprobado", "pago": PagoSerializer(pago).data}, status=200)
