@@ -2,6 +2,7 @@ from rest_framework import serializers
 from django.contrib.auth import get_user_model, authenticate, password_validation
 from django.db import transaction
 from django.core.exceptions import ObjectDoesNotExist
+from decimal import Decimal
 from .models import Profile, Rol, Unidad, Cuota, Pago, Infraccion, StaffKind, Visitor, Visit
 from django.contrib.auth.models import Permission  # 👈 necesario para PermissionBriefSerializer
 User = get_user_model()
@@ -384,28 +385,78 @@ class UnidadSerializer(serializers.ModelSerializer):
         return attrs
     
 class CuotaSerializer(serializers.ModelSerializer):
-    saldo = serializers.SerializerMethodField()
+    saldo = serializers.SerializerMethodField(read_only=True)
+    unidad_display = serializers.SerializerMethodField(read_only=True)
     vencimiento = serializers.DateField(input_formats=["%Y-%m-%d"], format="%Y-%m-%d")
-
-    def get_saldo(self, obj):
-        return obj.saldo
 
     class Meta:
         model = Cuota
         fields = [
-            "id","unidad","periodo","concepto",
-            "monto_base","usa_coeficiente","coeficiente_snapshot",
-            "monto_calculado","descuento_aplicado","mora_aplicada",
-            "total_a_pagar","pagado","saldo",
-            "vencimiento","estado","is_active",
-            "created_at","updated_at",
+            "id", "unidad", "unidad_display", "periodo", "concepto",
+            "monto_base", "usa_coeficiente", "coeficiente_snapshot",
+            "monto_calculado", "descuento_aplicado", "mora_aplicada",
+            "total_a_pagar", "pagado", "saldo",
+            "vencimiento", "estado", "is_active",
+            "created_at", "updated_at",
         ]
-        read_only_fields = ["monto_calculado","total_a_pagar","pagado","estado","created_at","updated_at"]
+        read_only_fields = [
+            "monto_calculado", "total_a_pagar", "estado",
+            "pagado", "created_at", "updated_at"
+        ]
 
-# ---- PAGOS ----
-def value_gt(a, b):
-    from decimal import Decimal
-    return Decimal(a) > Decimal(b)
+    # --- getters ---
+    def get_saldo(self, obj):
+        return obj.saldo
+
+    def get_unidad_display(self, obj):
+        return str(obj.unidad)  # "Mza X-<lote>-<numero>"
+
+    # --- validaciones ---
+    def validate_periodo(self, v):
+        if not PERIODO_RE.match(v or ""):
+            raise serializers.ValidationError("El periodo debe tener formato YYYY-MM.")
+        return v
+
+    def validate(self, attrs):
+        instancia = getattr(self, "instance", None)
+        unidad = attrs.get("unidad") or getattr(instancia, "unidad", None)
+        if unidad and not unidad.is_active:
+            raise serializers.ValidationError({"unidad": "La unidad está inactiva."})
+
+        usa_coef = attrs.get("usa_coeficiente", getattr(instancia, "usa_coeficiente", True))
+        snap = attrs.get("coeficiente_snapshot", getattr(instancia, "coeficiente_snapshot", None))
+        if usa_coef:
+            # Si no mandan snapshot, tomarlo de la unidad (si existe)
+            if (snap is None or snap == ""):
+                if unidad and unidad.coeficiente is not None:
+                    attrs["coeficiente_snapshot"] = unidad.coeficiente
+                else:
+                    raise serializers.ValidationError({
+                        "coeficiente_snapshot": "Requiere snapshot o coeficiente definido en la unidad."
+                    })
+
+        # Normaliza numéricos vacíos a Decimal("0.00")
+        for k in ("monto_base", "descuento_aplicado", "mora_aplicada"):
+            if k in attrs and attrs[k] is None:
+                attrs[k] = Decimal("0.00")
+
+        return attrs
+
+    # --- persistencia con recálculo server-side ---
+    def _recalc_and_save(self, instance):
+        instance.recalc_importes()
+        instance.recalc_estado()
+        instance.save()
+        return instance
+
+    def create(self, validated):
+        instance = super().create(validated)
+        return self._recalc_and_save(instance)
+
+    def update(self, instance, validated):
+        for k, v in validated.items():
+            setattr(instance, k, v)
+        return self._recalc_and_save(instance)
 
 # Entrada (POST)
 class PagoCreateSerializer(serializers.Serializer):
@@ -419,14 +470,20 @@ class PagoCreateSerializer(serializers.Serializer):
             raise serializers.ValidationError("El monto debe ser > 0.")
         return value
 
-    def create(self, validated_data):
-        cuota = validated_data["cuota"]
-        if value_gt(validated_data["monto"], cuota.saldo):
+    def validate(self, attrs):
+        cuota = attrs["cuota"]
+        if not cuota.is_active:
+            raise serializers.ValidationError({"cuota": "No se puede pagar una cuota anulada."})
+        if Decimal(cuota.saldo) <= 0:
+            raise serializers.ValidationError({"cuota": "La cuota no tiene saldo pendiente."})
+        if value_gt(attrs["monto"], cuota.saldo):
             raise serializers.ValidationError({"monto": "El monto excede el saldo pendiente."})
+        return attrs
 
+    def create(self, validated_data):
         request = self.context.get("request")
         pago = Pago.objects.create(
-            cuota=cuota,
+            cuota=validated_data["cuota"],
             monto=validated_data["monto"],
             medio=validated_data.get("medio", "EFECTIVO"),
             referencia=validated_data.get("referencia", ""),
@@ -468,7 +525,7 @@ class UserBriefSerializer(serializers.ModelSerializer):
 class UnidadMiniForInfSerializer(serializers.ModelSerializer):
     class Meta:
         model = Unidad
-        fields = ["id", "torre", "bloque", "numero"]
+        fields = ["id", "manzana", "lote", "numero"]
 
 class InfraccionSerializer(serializers.ModelSerializer):
     # lectura
@@ -503,7 +560,7 @@ class InfraccionSerializer(serializers.ModelSerializer):
 class UnidadBriefECSerializer(serializers.ModelSerializer):
     class Meta:
         model = Unidad
-        fields = ["id", "torre", "bloque", "numero"]
+        fields = ["id", "manzana", "lote", "numero"]
 
 class PagoEstadoCuentaSerializer(serializers.ModelSerializer):
     cuota_periodo = serializers.SerializerMethodField()
@@ -601,7 +658,7 @@ class RolBriefSerializer(serializers.ModelSerializer):
 class UnidadBriefSerializer(serializers.ModelSerializer):
     class Meta:
         model = Unidad
-        fields = ("id", "torre", "bloque", "numero")
+        fields = ("id", "manzana", "lote", "numero")
 
 # Comentarios
 class TareaComentarioSerializer(serializers.ModelSerializer):

@@ -11,7 +11,7 @@ import AdminUsers from "./pages/AdminUsers";
 import RolesPermisos from "./pages/RolesPermisos";
 import UnitsPage from "./pages/UnitsPage";
 import CuotasPage from "./pages/CuotasPage";
-import InfraccionesPage from "./pages/InfraccionesPagre";
+import InfraccionesPage from "./pages/InfraccionesPage";
 import EstadoCuentaPage from "./pages/EstadoCuentaPage";
 import AdminAvisosPage from "./pages/AdminAvisosPage";
 import MisAvisosPage from "./pages/MisAvisosPage";

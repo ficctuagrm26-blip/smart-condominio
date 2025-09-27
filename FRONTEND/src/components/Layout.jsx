@@ -210,14 +210,7 @@ export default function Layout() {
 
            
 
-            {/* Subgrupo: Finanzas */}
-            <SubGroup
-              title="Finanzas"
-              open={groups.fin}
-              onToggle={() => toggle("fin")}
-            >
-              <NavItem to="/admin/cuotas">Cuotas</NavItem>
-            </SubGroup>
+            
 
             {/* Subgrupo: Comunicación */}
             <SubGroup
@@ -250,14 +243,6 @@ export default function Layout() {
               <NavItem to="/admin/asignar-tareas">Asignar tareas</NavItem>
             </SubGroup>
 
-            {/* Subgrupo: Seguridad */}
-            <SubGroup
-              title="Seguridad"
-              open={groups.seg}
-              onToggle={() => toggle("seg")}
-            >
-              <NavItem to="/admin/infracciones">Infracciones</NavItem>
-            </SubGroup>
 
             {/* Subgrupo: Reportes */}
             <SubGroup
@@ -277,6 +262,14 @@ export default function Layout() {
           >
             <NavItem to="/admin/unidades">Gestionar Unidades (CU07)</NavItem>
             <NavItem to="/visits/">Gestionar Visitas (CU22)</NavItem>
+          </NavGroup>
+          <NavGroup
+            title="GESTIONAR FINANZAS"
+            open={groups.reservas}
+            onToggle={() => toggle("reservas")}
+          >
+            <NavItem to="/admin/cuotas">Gestionar Cuotas (CU08)</NavItem>
+            <NavItem to="/admin/infracciones">Gestionar Infracciones (CU09)</NavItem>
           </NavGroup>
         </div>
 

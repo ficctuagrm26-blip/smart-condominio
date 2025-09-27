@@ -282,8 +282,11 @@ class CuotaViewSet(viewsets.ModelViewSet):
     permission_classes = [IsAuthenticated]  # + tu IsAdmin si aplica
 
     filter_backends = [DjangoFilterBackend, SearchFilter, OrderingFilter]
-    filterset_fields = ["unidad", "periodo", "concepto", "estado", "is_active", "unidad__torre"]
-    search_fields = ["periodo", "concepto", "unidad__torre", "unidad__bloque", "unidad__numero"]
+    filterset_fields = [
+    "unidad", "periodo", "concepto", "estado", "is_active",
+    "unidad__manzana", "unidad__lote", "unidad__numero",
+    ]
+    search_fields = ["periodo", "concepto", "unidad__manzana", "unidad__lote", "unidad__numero"]
     ordering_fields = ["vencimiento", "updated_at", "total_a_pagar", "pagado"]
     ordering = ["-periodo", "unidad_id"]
 
@@ -376,7 +379,7 @@ class InfraccionViewSet(viewsets.ModelViewSet):
 
     filter_backends = [DjangoFilterBackend, SearchFilter, OrderingFilter]
     filterset_fields = ["unidad", "residente", "estado", "tipo", "is_active", "fecha"]
-    search_fields = ["descripcion", "unidad__torre", "unidad__bloque", "unidad__numero"]
+    search_fields = ["descripcion", "unidad__manzana", "unidad__lote", "unidad__numero"]
     ordering_fields = ["fecha", "monto", "updated_at"]
     ordering = ["-fecha"]
 
@@ -411,7 +414,7 @@ class TareaViewSet(viewsets.ModelViewSet):
     permission_classes = [IsAuthenticated]
     filter_backends = [DjangoFilterBackend, SearchFilter, OrderingFilter]
     filterset_fields = ["estado", "prioridad", "asignado_a", "asignado_a_rol", "unidad", "is_active"]
-    search_fields = ["titulo", "descripcion", "unidad__torre", "unidad__bloque", "unidad__numero", "creado_por__username", "asignado_a__username"]
+    search_fields = ["titulo", "descripcion", "unidad__manzana", "unidad__lote", "unidad__numero", "creado_por__username", "asignado_a__username"]
     ordering_fields = ["updated_at", "created_at", "fecha_limite", "prioridad"]
     ordering = ["-updated_at", "-created_at"]
 
