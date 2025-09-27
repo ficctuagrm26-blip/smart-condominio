@@ -158,7 +158,14 @@ export default function Layout() {
           >
             Mis tareas
           </NavLink>
-
+          <NavLink
+            to="/vehiculos"
+            className={({ isActive }) =>
+              `nav__link ${isActive ? "active" : ""}`
+            }
+          >
+            Mis vehículos
+          </NavLink>
           {/* ===== GESTIONAR USUARIOS ===== */}
           <NavGroup
             title="GESTIONAR USUARIOS"
