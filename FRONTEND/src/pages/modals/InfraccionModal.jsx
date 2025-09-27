@@ -1,16 +1,17 @@
 // src/pages/modals/InfraccionModal.jsx
 import { useEffect, useRef, useState } from "react";
 import api from "../../api/auth";
-//import "./InfraccionModal.css";
 
 const TIPO = ["RUIDO", "MASCOTA", "ESTACIONAMIENTO", "DANOS", "OTRA"];
 const ESTADO = ["PENDIENTE", "RESUELTA", "ANULADA"];
 
-// ---------- helpers ----------
+// helpers
 function fmtUnidad(u) {
   if (!u) return "";
-  const b = u.lote ? `-${u.lote}` : "";
-  return `Mza ${u.manzana}${b}-${u.numero}`;
+  const manzana = u.manzana ?? u.torre;
+  const lote = u.lote ?? u.bloque;
+  const b = lote ? `-${lote}` : "";
+  return `Mza ${manzana}${b}-${u.numero}`;
 }
 function mapUsers(rows) {
   return rows.map((u) => {
@@ -24,7 +25,7 @@ function mapUsers(rows) {
 }
 
 export default function InfraccionModal({ initial, onClose, onOk }) {
-  // ===== form =====
+  // formulario
   const [form, setForm] = useState({
     unidad_id: "",
     residente_id: "",
@@ -37,13 +38,16 @@ export default function InfraccionModal({ initial, onClose, onOk }) {
     is_active: true,
   });
 
-  // ===== combos =====
-  const [units, setUnits] = useState([]);           // [{id,label}]
-  const [residents, setResidents] = useState([]);   // [{id,name,email}]
+  // combos
+  const [units, setUnits] = useState([]);         // [{id,label}]
+  const [residents, setResidents] = useState([]); // [{id,name,email}]
   const [loadingCombos, setLoadingCombos] = useState(false);
 
-  // búsqueda rápida para unidades (cliente)
+  // búsqueda local de unidades
   const [unitQuery, setUnitQuery] = useState("");
+  const filteredUnits = unitQuery
+    ? units.filter((u) => u.label.toLowerCase().includes(unitQuery.toLowerCase()))
+    : units;
 
   const firstRef = useRef(null);
 
@@ -63,7 +67,7 @@ export default function InfraccionModal({ initial, onClose, onOk }) {
     });
   }, [initial]);
 
-  // cargar combos al abrir
+  // cargar combos
   useEffect(() => {
     let mounted = true;
     (async () => {
@@ -74,10 +78,9 @@ export default function InfraccionModal({ initial, onClose, onOk }) {
             params: {
               is_active: true,
               ordering: "manzana,lote,numero",
-              page_size: 1000, // ajusta si necesitas paginar
+              page_size: 1000,
             },
           }),
-          // tu endpoint de residentes; si usas otro, cámbialo aquí
           api.get("admin/users/residents/", {
             params: { is_active: true, ordering: "first_name,last_name", page_size: 1000 },
           }),
@@ -86,13 +89,10 @@ export default function InfraccionModal({ initial, onClose, onOk }) {
         if (!mounted) return;
 
         const uRows = Array.isArray(uRes.data) ? uRes.data : uRes.data.results || [];
-        const unitsOpts = uRows.map((u) => ({ id: u.id, label: fmtUnidad(u) }));
-
         const rRows = Array.isArray(rRes.data) ? rRes.data : rRes.data.results || [];
-        const residentsOpts = mapUsers(rRows);
 
-        setUnits(unitsOpts);
-        setResidents(residentsOpts);
+        setUnits(uRows.map((u) => ({ id: u.id, label: fmtUnidad(u) })));
+        setResidents(mapUsers(rRows));
       } catch (e) {
         console.error("Combos infracción:", e);
       } finally {
@@ -102,17 +102,13 @@ export default function InfraccionModal({ initial, onClose, onOk }) {
     return () => { mounted = false; };
   }, []);
 
+  // UX: foco/Escape
   useEffect(() => {
     firstRef.current?.focus();
     const onKey = (e) => { if (e.key === "Escape") onClose?.(); };
     window.addEventListener("keydown", onKey);
     return () => window.removeEventListener("keydown", onKey);
   }, [onClose]);
-
-  // filtro local de unidades por query
-  const filteredUnits = unitQuery
-    ? units.filter((u) => u.label.toLowerCase().includes(unitQuery.toLowerCase()))
-    : units;
 
   const submit = () => {
     const payload = {
@@ -220,7 +216,7 @@ export default function InfraccionModal({ initial, onClose, onOk }) {
           />
         </div>
 
-        {/* Monto + URL */}
+        {/* Monto + Evidencia URL */}
         <div className="grid-2">
           <div className="au-field">
             <label className="au-label">Monto</label>

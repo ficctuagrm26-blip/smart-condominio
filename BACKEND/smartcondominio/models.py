@@ -1,61 +1,93 @@
-from django.db import models
-from django.db.models import Q
-from django.contrib.auth.models import User, Permission
-from django.db.models.signals import post_save
-from django.dispatch import receiver
-from django.core.validators import MinValueValidator, MaxValueValidator
 from decimal import Decimal
 from datetime import date
-from django.utils import timezone
+
 from django.conf import settings
-#CREAMOS UNA TABLA DE TIPO ROL 
+from django.contrib.auth import get_user_model
+from django.contrib.auth.models import Permission, User  # User para FKs directas en algunos modelos
+from django.core.validators import MinValueValidator, MaxValueValidator
+from django.db import models
+from django.db.models import Q, F
+from django.db.models.signals import post_save
+from django.dispatch import receiver
+from django.utils import timezone
+
+
+# =========================
+# Roles / Perfiles
+# =========================
+
 BASE_CHOICES = [
     ("ADMIN", "Admin"),
     ("STAFF", "Staff"),
     ("RESIDENT", "Resident"),
 ]
+
+
 class Rol(models.Model):
     code = models.CharField(max_length=30, unique=True)   # Ej: ADMIN
     name = models.CharField(max_length=50)                # Ej: Administrador
     description = models.TextField(blank=True)
-    is_system = models.BooleanField(default=False)  # protege roles base
-    base = models.CharField(max_length=10, choices= BASE_CHOICES, default="STAFF") 
+    is_system = models.BooleanField(default=False)        # protege roles base
+    base = models.CharField(max_length=10, choices=BASE_CHOICES, default="STAFF")
     permissions = models.ManyToManyField(Permission, blank=True, related_name="roles")
-    
+
     class Meta:
         ordering = ["code"]
+
     def __str__(self):
         return f"{self.code} - {self.name}"
+
     def save(self, *args, **kwargs):
         # Normaliza el code: sin espacios y en mayúsculas
         if self.code:
             self.code = self.code.strip().upper().replace(" ", "_")
         super().save(*args, **kwargs)
 
-#TABLA DE TIPO PERFIL
-# Profile: cambia role de CharField -> ForeignKey
+
+class StaffKind(models.Model):
+    """
+    Catálogo opcional de tipos de personal (Guardia, Limpieza, Jardinería...).
+    Puedes crear/editar/eliminar libremente.
+    """
+    name = models.CharField(max_length=60, unique=True)
+    description = models.TextField(blank=True)
+    active = models.BooleanField(default=True)
+
+    class Meta:
+        ordering = ["name"]
+
+    def __str__(self):
+        return self.name
+
+
 class Profile(models.Model):
     user = models.OneToOneField(User, on_delete=models.CASCADE)
     role = models.ForeignKey(Rol, null=True, blank=True, on_delete=models.SET_NULL)
 
-    # Usa string para evitar el NameError por orden de definición
+    # Tipo de personal (opcional)
     staff_kind = models.ForeignKey(
-        "smartcondominio.StaffKind",  # o simplemente "StaffKind"
+        "smartcondominio.StaffKind",
         null=True, blank=True,
         on_delete=models.SET_NULL,
         related_name="profiles",
     )
     staff_kind_text = models.CharField(max_length=80, blank=True, default="")
+
     def __str__(self):
         role_code = self.role.code if self.role else "Sin rol"
         kind = self.staff_kind.name if self.staff_kind else (self.staff_kind_text or "")
         return f"{self.user.username} ({role_code}{' · ' + kind if kind else ''})"
 
+
 @receiver(post_save, sender=User)
 def ensure_profile(sender, instance, created, **kwargs):
     Profile.objects.get_or_create(user=instance)
-    
-#UNIDAD  
+
+
+# =========================
+# Unidades / Cuotas / Pagos
+# =========================
+
 class Unidad(models.Model):
     TIPO_CHOICES = [
         ("DEP", "Departamento"),
@@ -82,12 +114,12 @@ class Unidad(models.Model):
         validators=[MinValueValidator(0)]
     )
     coeficiente = models.DecimalField(
-        max_digits=6, decimal_places=4, null=True, blank=True,  # más precisión
+        max_digits=6, decimal_places=4, null=True, blank=True,  # precisión fina (%)
         validators=[MinValueValidator(0), MaxValueValidator(100)]
     )
     dormitorios = models.IntegerField(default=0, validators=[MinValueValidator(0)])
-    parqueos = models.IntegerField(default=0, validators=[MinValueValidator(0)])
-    bodegas = models.IntegerField(default=0, validators=[MinValueValidator(0)])
+    parqueos    = models.IntegerField(default=0, validators=[MinValueValidator(0)])
+    bodegas     = models.IntegerField(default=0, validators=[MinValueValidator(0)])
 
     # Estado y asignaciones
     estado = models.CharField(max_length=20, choices=ESTADO_CHOICES, default="DESOCUPADA")
@@ -117,7 +149,8 @@ class Unidad(models.Model):
     def __str__(self):
         b = f"-{self.lote}" if self.lote else ""
         return f"Mza {self.manzana}{b}-{self.numero}"
-    
+
+
 class Cuota(models.Model):
     ESTADO_CHOICES = [
         ("PENDIENTE", "Pendiente"),
@@ -134,7 +167,8 @@ class Cuota(models.Model):
     # Montos
     monto_base = models.DecimalField(max_digits=10, decimal_places=2, default=Decimal("0.00"))
     usa_coeficiente = models.BooleanField(default=True)
-    coeficiente_snapshot = models.DecimalField(max_digits=5, decimal_places=2, default=Decimal("0.00"))  # % de la unidad en el momento
+    # snapshot de % de la unidad en el momento
+    coeficiente_snapshot = models.DecimalField(max_digits=6, decimal_places=4, default=Decimal("0.0000"))
     monto_calculado = models.DecimalField(max_digits=10, decimal_places=2, default=Decimal("0.00"))
     descuento_aplicado = models.DecimalField(max_digits=10, decimal_places=2, default=Decimal("0.00"))
     mora_aplicada = models.DecimalField(max_digits=10, decimal_places=2, default=Decimal("0.00"))
@@ -156,9 +190,7 @@ class Cuota(models.Model):
                 name="uniq_cuota_unidad_periodo_concepto_activa",
             )
         ]
-        indexes = [
-            models.Index(fields=["periodo", "concepto"]),
-        ]
+        indexes = [models.Index(fields=["periodo", "concepto"])]
         ordering = ["-periodo", "unidad_id"]
 
     def __str__(self):
@@ -170,7 +202,9 @@ class Cuota(models.Model):
         return s if s > 0 else Decimal("0.00")
 
     def recalc_importes(self):
-        """Recalcula monto_calculado/total según base + coeficiente + descuentos/moras (simples)"""
+        """
+        Recalcula monto_calculado/total según base + coeficiente + descuentos/moras (simples)
+        """
         base = Decimal(self.monto_base or 0)
         coef = Decimal(self.coeficiente_snapshot or 0)
         calculado = base * (coef / Decimal("100")) if self.usa_coeficiente else base
@@ -200,6 +234,7 @@ class Cuota(models.Model):
             self.mora_aplicada = (Decimal(self.mora_aplicada) + Decimal(mora_fija)).quantize(Decimal("0.01"))
             self.recalc_importes()
             self.recalc_estado()
+
 
 class Pago(models.Model):
     MEDIO_CHOICES = [
@@ -240,8 +275,11 @@ class Pago(models.Model):
             self.cuota.pagado = Decimal("0.00")
         self.cuota.recalc_estado()
         self.cuota.save(update_fields=["pagado", "estado", "updated_at"])
-        
-#GESTIONAR INFRACCIONES
+
+
+# =========================
+# Infracciones
+# =========================
 
 class Infraccion(models.Model):
     TIPO_CHOICES = [
@@ -258,7 +296,6 @@ class Infraccion(models.Model):
     ]
 
     unidad = models.ForeignKey("smartcondominio.Unidad", on_delete=models.PROTECT, related_name="infracciones")
-    # 🔧 antes: ForeignKey("smartcondominio.Residente") -> no existe
     residente = models.ForeignKey(User, null=True, blank=True, on_delete=models.SET_NULL, related_name="infracciones")
 
     fecha = models.DateField(default=timezone.now)
@@ -278,9 +315,11 @@ class Infraccion(models.Model):
 
     def __str__(self):
         return f"{self.unidad_id} • {self.tipo} • {self.estado}"
-    
-# --- CU13: Avisos / Comunicados (sin FileField) ---
-from django.utils import timezone
+
+
+# =========================
+# Avisos / Comunicados
+# =========================
 
 class Aviso(models.Model):
     AUDIENCE_CHOICES = [
@@ -316,7 +355,7 @@ class Aviso(models.Model):
     notify_push = models.BooleanField(default=False)
 
     # adjuntos como URLs (Drive/S3/lo que uses)
-    adjuntos = models.JSONField(default=list, blank=True)  # p.ej: ["https://.../archivo.pdf", ...]
+    adjuntos = models.JSONField(default=list, blank=True)
 
     # auditoría
     creado_por = models.ForeignKey(User, null=True, on_delete=models.SET_NULL, related_name="avisos_creados")
@@ -351,14 +390,10 @@ class Aviso(models.Model):
         if not self.publish_at:
             self.publish_at = timezone.now()
 
-# ====== TAREAS (CU15/CU24) ======
 
-from django.db import models
-from django.contrib.auth import get_user_model
-from django.db.models import Q
-from django.utils import timezone
-
-User = get_user_model()
+# =========================
+# Tareas (CU15/CU24)
+# =========================
 
 class Tarea(models.Model):
     PRIORIDAD_CHOICES = [
@@ -394,7 +429,7 @@ class Tarea(models.Model):
     fecha_inicio = models.DateField(null=True, blank=True)
     fecha_limite = models.DateField(null=True, blank=True)
 
-    # Adjuntos/Checklist (como URLs/ítems para no usar FileField en Render)
+    # Adjuntos/Checklist (como URLs/ítems)
     adjuntos = models.JSONField(default=list, blank=True)
     checklist = models.JSONField(default=list, blank=True)  # [{text: str, done: bool}]
 
@@ -407,14 +442,16 @@ class Tarea(models.Model):
     class Meta:
         ordering = ["-updated_at", "-created_at"]
         permissions = [
-            ("manage_tasks", "Puede gestionar y asignar tareas"),  # 👈 nuevo
+            ("manage_tasks", "Puede gestionar y asignar tareas"),
         ]
+
     def __str__(self):
         return f"[{self.id}] {self.titulo}"
 
     @property
     def atrasada(self) -> bool:
         return bool(self.fecha_limite and timezone.localdate() > self.fecha_limite and self.estado not in {"COMPLETADA", "CANCELADA"})
+
 
 class TareaComentario(models.Model):
     tarea = models.ForeignKey(Tarea, on_delete=models.CASCADE, related_name="comentarios")
@@ -429,10 +466,9 @@ class TareaComentario(models.Model):
         return f"Coment {self.id} · Tarea {self.tarea_id}"
 
 
-# ========= CU16: MODELOS DE ÁREAS COMUNES =========
-from django.conf import settings
-from django.db import models
-from django.utils import timezone
+# =========================
+# Áreas Comunes (CU16)
+# =========================
 
 class AreaComun(models.Model):
     nombre = models.CharField(max_length=120, unique=True)
@@ -471,7 +507,7 @@ class AreaDisponibilidad(models.Model):
         ordering = ["area", "dia_semana", "hora_inicio"]
         constraints = [
             models.CheckConstraint(
-                check=models.Q(hora_fin__gt=models.F("hora_inicio")),
+                check=Q(hora_fin__gt=F("hora_inicio")),
                 name="area_disp_hora_fin_gt_inicio"
             ),
             models.UniqueConstraint(
@@ -522,23 +558,10 @@ class ReservaArea(models.Model):
         return f"{self.area} {self.fecha_inicio} - {self.fecha_fin} ({self.estado})"
 
 
-class StaffKind(models.Model):
-    """
-    Catálogo opcional de tipos de personal (Guardia, Limpieza, Jardinería...).
-    Puedes crear/editar/eliminar libremente.
-    """
-    name = models.CharField(max_length=60, unique=True)
-    description = models.TextField(blank=True)
-    active = models.BooleanField(default=True)
+# =========================
+# Visitantes / Visitas
+# =========================
 
-    class Meta:
-        ordering = ["name"]
-
-    def __str__(self):
-        return self.name
-    
-#VISITANTES
-# VISITANTES
 class Visitor(models.Model):
     DOC_TYPES = [
         ("CI", "Cédula"),
@@ -566,7 +589,6 @@ class Visitor(models.Model):
 
     def __str__(self):
         return f"{self.full_name} ({self.doc_type}-{self.doc_number})"
-
 
 
 class Visit(models.Model):
@@ -613,7 +635,7 @@ class Visit(models.Model):
         ordering = ["-created_at"]
 
     def save(self, *args, **kwargs):
-        # Normalización de placa AQUÍ (en Visit, no en Visitor)
+        # Normalización de placa
         if self.vehicle_plate:
             self.vehicle_plate = self.vehicle_plate.strip().upper().replace(" ", "")
         super().save(*args, **kwargs)
@@ -636,7 +658,151 @@ class Visit(models.Model):
         self.status = "SALIDO"
 
 
-#ONLINEPAGO
+# =========================
+# Vehículos / Solicitudes
+# =========================
+
+VEHICULO_TIPO_CHOICES = [
+    ("AUTO", "Auto"),
+    ("MOTO", "Moto"),
+    ("CAMIONETA", "Camioneta"),
+    ("OTRO", "Otro"),
+]
+
+SOLICITUD_ESTADO_CHOICES = [
+    ("PENDIENTE", "Pendiente"),
+    ("APROBADA", "Aprobada"),
+    ("RECHAZADA", "Rechazada"),
+    ("CANCELADA", "Cancelada"),
+]
+
+
+class Vehiculo(models.Model):
+    unidad = models.ForeignKey(
+        "smartcondominio.Unidad",
+        on_delete=models.PROTECT,
+        null=True, blank=True,
+        related_name="vehiculos",
+    )
+    propietario = models.ForeignKey(
+        settings.AUTH_USER_MODEL,
+        on_delete=models.PROTECT,
+        related_name="vehiculos",
+    )
+    placa = models.CharField(max_length=15, unique=True, db_index=True)
+    marca = models.CharField(max_length=40, blank=True, default="")
+    modelo = models.CharField(max_length=40, blank=True, default="")
+    color = models.CharField(max_length=30, blank=True, default="")
+    tipo = models.CharField(max_length=12, choices=VEHICULO_TIPO_CHOICES, default="AUTO")
+
+    foto = models.ImageField(upload_to="vehiculos/fotos/", null=True, blank=True)
+
+    activo = models.BooleanField(default=True)
+    autorizado_en = models.DateTimeField(null=True, blank=True)
+    autorizado_por = models.ForeignKey(
+        settings.AUTH_USER_MODEL, null=True, blank=True,
+        on_delete=models.SET_NULL, related_name="vehiculos_autorizados"
+    )
+
+    created_at = models.DateTimeField(auto_now_add=True)
+    updated_at = models.DateTimeField(auto_now=True)
+
+    class Meta:
+        ordering = ["placa"]
+
+    def __str__(self):
+        return f"{self.placa} ({self.marca} {self.modelo})"
+
+
+class SolicitudVehiculo(models.Model):
+    solicitante = models.ForeignKey(
+        settings.AUTH_USER_MODEL,
+        on_delete=models.PROTECT,
+        related_name="solicitudes_vehiculo",
+    )
+    unidad = models.ForeignKey(
+        "smartcondominio.Unidad",
+        on_delete=models.PROTECT,
+        null=True, blank=True,
+        related_name="solicitudes_vehiculo",
+    )
+
+    # datos del vehículo solicitado
+    placa = models.CharField(max_length=15)
+    marca = models.CharField(max_length=40, blank=True, default="")
+    modelo = models.CharField(max_length=40, blank=True, default="")
+    color = models.CharField(max_length=30, blank=True, default="")
+    tipo = models.CharField(max_length=12, choices=VEHICULO_TIPO_CHOICES, default="AUTO")
+
+    # adjuntos
+    foto_placa = models.ImageField(upload_to="vehiculos/placas/", null=True, blank=True)
+    documento = models.FileField(upload_to="vehiculos/docs/", null=True, blank=True)
+
+    estado = models.CharField(max_length=12, choices=SOLICITUD_ESTADO_CHOICES, default="PENDIENTE", db_index=True)
+    observaciones = models.TextField(blank=True, default="")
+    revisado_por = models.ForeignKey(
+        settings.AUTH_USER_MODEL, null=True, blank=True,
+        on_delete=models.SET_NULL, related_name="solicitudes_vehiculo_revisadas",
+    )
+    revisado_en = models.DateTimeField(null=True, blank=True)
+
+    # vínculo con el vehículo generado al aprobar
+    vehiculo = models.ForeignKey(Vehiculo, null=True, blank=True, on_delete=models.SET_NULL, related_name="solicitudes")
+
+    created_at = models.DateTimeField(auto_now_add=True)
+    updated_at = models.DateTimeField(auto_now=True)
+
+    class Meta:
+        indexes = [models.Index(fields=["placa", "estado"])]
+        ordering = ["-created_at"]
+
+    def __str__(self):
+        return f"Solicitud {self.placa} ({self.estado})"
+
+    def aprobar(self, aprobado_por, unidad=None, observ=""):
+        # Verifica que no exista otra placa autorizada
+        existe = Vehiculo.objects.filter(placa__iexact=self.placa).exclude(activo=False).first()
+        if existe and existe.propietario_id != self.solicitante_id:
+            raise ValueError("La placa ya está registrada por otro usuario.")
+
+        vehiculo = existe or Vehiculo.objects.create(
+            propietario=self.solicitante,
+            placa=self.placa.upper(),
+            marca=self.marca, modelo=self.modelo, color=self.color, tipo=self.tipo,
+            unidad=unidad or self.unidad,
+        )
+        vehiculo.autorizado_en = timezone.now()
+        vehiculo.autorizado_por = aprobado_por
+        vehiculo.activo = True
+        vehiculo.save()
+
+        self.estado = "APROBADA"
+        self.revisado_por = aprobado_por
+        self.revisado_en = timezone.now()
+        self.observaciones = observ or self.observaciones
+        self.vehiculo = vehiculo
+        self.save()
+        return vehiculo
+
+    def rechazar(self, rechazado_por, observ=""):
+        self.estado = "RECHAZADA"
+        self.revisado_por = rechazado_por
+        self.revisado_en = timezone.now()
+        self.observaciones = observ or self.observaciones
+        self.save()
+
+    def cancelar(self, cancelado_por, observ=""):
+        if self.solicitante_id != cancelado_por.id:
+            raise ValueError("Solo el solicitante puede cancelar su solicitud.")
+        self.estado = "CANCELADA"
+        self.observaciones = observ or self.observaciones
+        self.save()
+
+
+# =========================
+# Pagos Online (Mock)
+# =========================
+
 class OnlinePaymentIntent(models.Model):
     PROVIDERS = [("MOCK", "Mock")]
     ESTADOS = [("CREATED","Creada"),("PENDING","Pendiente"),("PAID","Pagada"),
@@ -681,6 +847,7 @@ class OnlinePaymentIntent(models.Model):
     def mark_paid(self):
         self.status = "PAID"
         self.paid_at = timezone.now()
+
 
 class MockReceipt(models.Model):
     intent = models.ForeignKey(OnlinePaymentIntent, on_delete=models.CASCADE, related_name="receipts")

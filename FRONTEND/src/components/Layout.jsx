@@ -1,15 +1,9 @@
 // src/components/Layout.jsx
 import { useEffect, useMemo, useState } from "react";
-import {
-  NavLink,
-  Link,
-  Outlet,
-  useLocation,
-  useNavigate,
-} from "react-router-dom";
+import { NavLink, Link, Outlet, useLocation, useNavigate } from "react-router-dom";
 import "../styles.css";
 
-/** ========== Helpers visuales reusables (ocultan los divs) ========== */
+/** ========== Helpers visuales reusables ========== */
 function NavGroup({ title, open, onToggle, children }) {
   return (
     <div className="nav-group">
@@ -57,6 +51,7 @@ export default function Layout() {
       return {};
     }
   }, []);
+
   const roleCode =
     me?.profile?.role?.code ||
     me?.profile?.role_code ||
@@ -71,25 +66,22 @@ export default function Layout() {
   // ====== Estado móvil: sidebar ======
   const [sidebarOpen, setSidebarOpen] = useState(false);
   useEffect(() => {
-    setSidebarOpen(false); // cada navegación cierra el sidebar en móvil
+    // cada navegación cierra el sidebar en móvil
+    setSidebarOpen(false);
   }, [location.pathname, location.search]);
 
-  // Query params usados en "Usuarios / Staff / Residentes"
+  // ====== Helpers y params ======
   const params = new URLSearchParams(location.search);
   const currentGroup = params.get("group");
   const onUsersPath = location.pathname === "/admin/usuarios";
   const activeUsers = onUsersPath && !currentGroup;
   const activeStaff = onUsersPath && currentGroup === "staff";
   const activeResidents = onUsersPath && currentGroup === "residents";
-
-  // helpers
   const isPath = (p) => location.pathname.startsWith(p);
 
-  // ========= Estado de grupos (simple, por clave) =========
+  // ========= Estado de grupos =========
   const [groups, setGroups] = useState(() => ({
-    // principal tipo "GESTIONAR USUARIOS"
     admin: location.pathname.startsWith("/admin"),
-    // subgrupos
     usr: isPath("/admin/usuarios"),
     uni: isPath("/admin/unidades"),
     fin: isPath("/admin/cuotas") || isPath("/admin/pagos"),
@@ -98,11 +90,10 @@ export default function Layout() {
     tasks: isPath("/admin/tareas") || isPath("/admin/asignar-tareas"),
     seg: isPath("/admin/infracciones"),
     rep: isPath("/admin/reportes"),
-    // NUEVOS grupos principales que quieras añadir (ejemplo):
     reservas: isPath("/admin/reservas") || isPath("/admin/areas-comunes/reservas"),
   }));
 
-  // Abrir automáticamente "admin" si entras a cualquier ruta /admin
+  // abrir automáticamente "admin" si entras a /admin
   useEffect(() => {
     if (location.pathname.startsWith("/admin")) {
       setGroups((g) => ({ ...g, admin: true }));
@@ -126,7 +117,7 @@ export default function Layout() {
         <div className="topbar__spacer" />
       </header>
 
-      {/* ===== Backdrop móvil ===== */}
+      {/* Backdrop móvil */}
       <div
         className={`sidebar__backdrop ${sidebarOpen ? "open" : ""}`}
         onClick={() => setSidebarOpen(false)}
@@ -153,12 +144,14 @@ export default function Layout() {
           >
             Disponibilidad de áreas
           </NavLink>
+
           <NavLink
             to="/avisos"
             className={({ isActive }) => `nav__link ${isActive ? "active" : ""}`}
           >
             Mis avisos
           </NavLink>
+
           <NavLink
             to="/tareas"
             className={({ isActive }) => `nav__link ${isActive ? "active" : ""}`}
@@ -178,6 +171,9 @@ export default function Layout() {
             <NavItem to="/admin/permisos">Gestionar Permisos (CU06)</NavItem>
             <NavItem to="/estado-cuenta">Consultar Estado de Cuenta (CU10)</NavItem>
             <NavItem to="/personal">Gestionar Personal (CU14)</NavItem>
+            <NavItem to="/admin/solicitudes-vehiculo">
+              Gestionar Vehículos Autorizados (CU26)
+            </NavItem>
 
             {/* Subgrupo: Gestión de usuarios (CU04) */}
             <SubGroup
@@ -185,7 +181,6 @@ export default function Layout() {
               open={groups.usr}
               onToggle={() => toggle("usr")}
             >
-              {/* estos tres se marcan activos con la lógica previa */}
               <Link
                 to="/admin/usuarios"
                 className={`nav__sublink ${activeUsers ? "active" : ""}`}
@@ -205,12 +200,6 @@ export default function Layout() {
                 Residentes
               </Link>
             </SubGroup>
-
-            <NavItem to="/admin/roles-permisos">Roles & Permisos</NavItem>
-
-           
-
-            
 
             {/* Subgrupo: Comunicación */}
             <SubGroup
@@ -243,7 +232,6 @@ export default function Layout() {
               <NavItem to="/admin/asignar-tareas">Asignar tareas</NavItem>
             </SubGroup>
 
-
             {/* Subgrupo: Reportes */}
             <SubGroup
               title="Reportes"
@@ -254,7 +242,7 @@ export default function Layout() {
             </SubGroup>
           </NavGroup>
 
-          {/* ===== EJEMPLO de OTRO MENÚ PRINCIPAL (igual a GESTIONAR USUARIOS) ===== */}
+          {/* ===== Otros menús principales ===== */}
           <NavGroup
             title="GESTIONAR UNIDADES"
             open={groups.reservas}
@@ -263,10 +251,11 @@ export default function Layout() {
             <NavItem to="/admin/unidades">Gestionar Unidades (CU07)</NavItem>
             <NavItem to="/visits/">Gestionar Visitas (CU22)</NavItem>
           </NavGroup>
+
           <NavGroup
             title="GESTIONAR FINANZAS"
-            open={groups.reservas}
-            onToggle={() => toggle("reservas")}
+            open={groups.fin}
+            onToggle={() => toggle("fin")}
           >
             <NavItem to="/admin/cuotas">Gestionar Cuotas (CU08)</NavItem>
             <NavItem to="/admin/infracciones">Gestionar Infracciones (CU09)</NavItem>
@@ -276,8 +265,7 @@ export default function Layout() {
         {/* Footer fijo */}
         <div className="userbox userbox--sticky">
           <div className="muted" style={{ fontSize: 18 }}>
-            {me?.role || "—"}{" "}
-            {roleCode ? <span className="badge">{roleCode}</span> : null}
+            {me?.role || "—"} {roleCode ? <span className="badge">{roleCode}</span> : null}
           </div>
           <button className="au-button au-button--ghost" onClick={signout}>
             Cerrar Sesión

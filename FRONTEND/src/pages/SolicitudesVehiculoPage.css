@@ -1,0 +1,46 @@
+/* src/pages/SolicitudesVehiculoPage.css */
+.sol-vehiculos-page {
+  max-width: 1180px;
+  margin: 0 auto;
+  width: 92%;
+}
+.card {
+  background: var(--card);
+  border: 1px solid var(--border);
+  border-radius: 12px;
+  padding: 16px;
+  margin: 16px 0;
+}
+.card__title {
+  margin-bottom: 12px;
+}
+.row-actions {
+  display: flex;
+  gap: 8px;
+}
+.files {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+.modal {
+  position: fixed;
+  inset: 0;
+  background: rgba(0, 0, 0, 0.55);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  z-index: 50;
+}
+.modal__card {
+  background: var(--card);
+  border: 1px solid var(--border);
+  border-radius: 12px;
+  padding: 16px;
+  width: min(520px, 92vw);
+}
+.modal__actions {
+  display: flex;
+  gap: 8px;
+  margin-top: 12px;
+}
