@@ -14,9 +14,9 @@ from django.contrib.auth.models import Permission
 from django_filters.rest_framework import DjangoFilterBackend
 from rest_framework.filters import SearchFilter, OrderingFilter
 from datetime import date
-from .models import Rol, Profile, Unidad, Cuota, Pago, Infraccion
+from .models import Rol, Profile, Unidad, Cuota, Pago, Infraccion, Visitor, Visit
 from .permissions import IsAdmin
-from .permissions import user_role_code, has_role_permission
+from .permissions import user_role_code, has_role_permission, IsStaffGuardOrAdmin
 from .serializers import (
     RegisterSerializer,
     MeSerializer,
@@ -24,11 +24,11 @@ from .serializers import (
     MeUpdateSerializer,
     ChangePasswordSerializer,
     RolSimpleSerializer,
-    PermissionBriefSerializer, UnidadSerializer, CuotaSerializer, PagoCreateSerializer, PagoSerializer,GenerarCuotasSerializer, InfraccionSerializer,PagoEstadoCuentaSerializer,UnidadBriefECSerializer   # 👈 lo importamos (definido en serializers.py)
+    PermissionBriefSerializer, UnidadSerializer, CuotaSerializer, PagoCreateSerializer, PagoSerializer,GenerarCuotasSerializer, InfraccionSerializer,PagoEstadoCuentaSerializer,UnidadBriefECSerializer, VisitorSerializer, VisitSerializer   # 👈 lo importamos (definido en serializers.py)
 )
 from .models import Aviso, Unidad
 from .serializers import AvisoSerializer
-from .permissions import IsAdmin, user_role_code
+from .permissions import IsAdmin, user_role_code, VisitAccess, IsStaff
 from django.utils import timezone
 from django.db import models
 from .models import Tarea, TareaComentario  # + ya tienes Unidad, etc.
@@ -921,3 +921,92 @@ class StaffViewSet(viewsets.ModelViewSet):
     def partial_update(self, request, *args, **kwargs):
         kwargs["partial"] = True
         return self.update(request, *args, **kwargs)
+    
+# VISITANTES
+class VisitorViewSet(viewsets.ModelViewSet):
+    queryset = Visitor.objects.all().order_by("full_name")
+    serializer_class = VisitorSerializer
+    filter_backends = [SearchFilter, OrderingFilter]
+    search_fields = ["full_name", "doc_number"]
+    ordering_fields = ["full_name", "doc_number"]
+
+    # listar/ver: cualquier autenticado; crear/editar/borrar: STAFF/ADMIN
+    def get_permissions(self):
+        if self.action in ["list", "retrieve"]:
+            return [IsAuthenticated()]
+        return [IsAuthenticated(), IsStaff()]
+
+# --- VISITS ---
+class VisitViewSet(viewsets.ModelViewSet):
+    queryset = Visit.objects.select_related("visitor", "unit", "host_resident").all()
+    serializer_class = VisitSerializer
+    filter_backends = [DjangoFilterBackend, SearchFilter, OrderingFilter]
+    filterset_fields = ["status", "unit", "host_resident"]
+    search_fields = ["visitor__full_name", "visitor__doc_number", "vehicle_plate", "purpose"]
+    ordering_fields = ["created_at", "entry_at", "exit_at"]
+
+    def get_permissions(self):
+        # crear/editar/cerrar estados → STAFF/ADMIN
+        staff_actions = {"create", "update", "partial_update", "destroy", "enter", "exit", "cancel", "deny"}
+        if self.action in staff_actions:
+            return [IsAuthenticated(), IsStaff()]
+        # listar/ver → autenticado
+        return [IsAuthenticated()]
+
+    def get_queryset(self):
+        qs = super().get_queryset()
+        u = self.request.user
+        # Admin / base STAFF ven todo
+        code = user_role_code(u)
+        base = getattr(getattr(getattr(u, "profile", None), "role", None), "base", None)
+        if getattr(u, "is_superuser", False) or code == "ADMIN" or base == "STAFF":
+            return qs
+        # Residente: solo sus visitas
+        mis_unidades = Unidad.objects.filter(Q(propietario=u) | Q(residente=u)).values_list("id", flat=True)
+        return qs.filter(Q(host_resident=u) | Q(unit_id__in=mis_unidades)).distinct()
+
+    def perform_create(self, serializer):
+        # No pases created_by aquí: el serializer ya lo asigna desde context
+        serializer.save()
+
+    def perform_update(self, serializer):
+        # Igual con updated_by: el serializer lo asigna
+        serializer.save()
+
+    @action(detail=True, methods=["post"])
+    def enter(self, request, pk=None):
+        visit = self.get_object()
+        if visit.status not in ["REGISTRADO", "DENEGADO"]:
+            return Response({"detail": "La visita no está en estado apto para ingreso."}, status=400)
+        visit.mark_entry(request.user)
+        visit.save()
+        return Response(VisitSerializer(visit, context={"request": request}).data)
+
+    @action(detail=True, methods=["post"])
+    def exit(self, request, pk=None):
+        visit = self.get_object()
+        if visit.status != "INGRESADO":
+            return Response({"detail": "La visita no está ingresada."}, status=400)
+        visit.mark_exit(request.user)
+        visit.save()
+        return Response(VisitSerializer(visit, context={"request": request}).data)
+
+    @action(detail=True, methods=["post"])
+    def cancel(self, request, pk=None):
+        visit = self.get_object()
+        if visit.status in ["SALIDO", "CANCELADO"]:
+            return Response({"detail": "La visita ya fue cerrada/cancelada."}, status=400)
+        visit.status = "CANCELADO"
+        visit.updated_by = request.user
+        visit.save()
+        return Response(VisitSerializer(visit, context={"request": request}).data)
+
+    @action(detail=True, methods=["post"])
+    def deny(self, request, pk=None):
+        visit = self.get_object()
+        if visit.status != "REGISTRADO":
+            return Response({"detail": "Solo se puede denegar una visita registrada."}, status=400)
+        visit.status = "DENEGADO"
+        visit.updated_by = request.user
+        visit.save()
+        return Response(VisitSerializer(visit, context={"request": request}).data)

@@ -276,10 +276,7 @@ export default function Layout() {
             onToggle={() => toggle("reservas")}
           >
             <NavItem to="/admin/unidades">Gestionar Unidades (CU07)</NavItem>
-            <NavItem to="/admin/reservas/nueva">Gestionar Reserva (CU17)</NavItem>
-            <NavItem to="/admin/reservas/confirmar">
-              Confirmar & Cobrar (CU18)
-            </NavItem>
+            <NavItem to="/visits/">Gestionar Visitas (CU22)</NavItem>
           </NavGroup>
         </div>
 

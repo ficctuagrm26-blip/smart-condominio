@@ -2,7 +2,7 @@ from rest_framework import serializers
 from django.contrib.auth import get_user_model, authenticate, password_validation
 from django.db import transaction
 from django.core.exceptions import ObjectDoesNotExist
-from .models import Profile, Rol, Unidad, Cuota, Pago, Infraccion, StaffKind
+from .models import Profile, Rol, Unidad, Cuota, Pago, Infraccion, StaffKind, Visitor, Visit
 from django.contrib.auth.models import Permission  # 👈 necesario para PermissionBriefSerializer
 User = get_user_model()
 
@@ -714,6 +714,94 @@ class DisponibilidadResponseSerializer(serializers.Serializer):
 class StaffKindSerializer(serializers.ModelSerializer):
     class Meta:
         model = StaffKind
-        fields = ["id", "code", "name", "is_active", "created_at", "updated_at"]
-        read_only_fields = ["id", "created_at", "updated_at"]
+        fields = ["id", "name", "description", "active"]
+        read_only_fields = ["id"]
 
+
+
+class VisitorSerializer(serializers.ModelSerializer):
+    class Meta:
+        model = Visitor
+        fields = ["id", "full_name", "doc_type", "doc_number", "phone"]
+
+class VisitSerializer(serializers.ModelSerializer):
+    # siempre recibimos visitor anidado
+    visitor = VisitorSerializer()
+
+    host_resident_name = serializers.SerializerMethodField(read_only=True)
+    unit_name = serializers.SerializerMethodField(read_only=True)
+
+    class Meta:
+        model = Visit
+        fields = [
+            "id",
+            "visitor",          # anidado -> get_or_create
+            "unit",             # PK de Unidad
+            "host_resident",    # PK de User (residente anfitrión)
+            "unit_name", "host_resident_name",
+            "vehicle_plate", "purpose", "scheduled_for",
+            "status", "entry_at", "exit_at", "notes",
+            "created_at", "created_by", "updated_at", "updated_by", "entry_by", "exit_by",
+        ]
+        read_only_fields = ["status", "entry_at", "exit_at", "created_by", "updated_by", "entry_by", "exit_by"]
+
+    def get_host_resident_name(self, obj):
+        u = obj.host_resident
+        return (f"{u.first_name} {u.last_name}".strip() or u.username) if u else None
+
+    def get_unit_name(self, obj):
+        u = obj.unit
+        if not u:
+            return None
+        b = f"-{u.lote}" if u.lote else ""
+        return f"Mza {u.manzana}{b}-{u.numero}"
+
+    # ---- helpers ----
+    def _get_or_create_visitor(self, validated):
+        vdata = validated.pop("visitor")  # ya validado por VisitorSerializer
+        visitor, _ = Visitor.objects.get_or_create(
+            doc_type=vdata.get("doc_type", "CI"),
+            doc_number=vdata["doc_number"],
+            defaults={
+                "full_name": vdata.get("full_name", "").strip(),
+                "phone": (vdata.get("phone") or "").strip(),
+            },
+        )
+        # actualizar nombre/teléfono si vinieron distintos
+        changed = False
+        if vdata.get("full_name") and visitor.full_name != vdata["full_name"].strip():
+            visitor.full_name = vdata["full_name"].strip(); changed = True
+        if "phone" in vdata and (visitor.phone or "") != (vdata.get("phone") or "").strip():
+            visitor.phone = (vdata.get("phone") or "").strip(); changed = True
+        if changed:
+            visitor.save()
+        return visitor
+
+    # ---- create/update ----
+    def create(self, validated):
+        request = self.context.get("request")
+        user = getattr(request, "user", None)
+
+        # resolver/elaborar visitor
+        visitor = self._get_or_create_visitor(validated)
+
+        # el resto (unit, host_resident) llegan como PK y DRF ya los resolvió
+        visit = Visit.objects.create(created_by=user, visitor=visitor, **validated)
+        return visit
+
+    def update(self, instance, validated):
+        request = self.context.get("request")
+        user = getattr(request, "user", None)
+
+        if "visitor" in validated:
+            instance.visitor = self._get_or_create_visitor(validated)
+
+        # asigna otros campos
+        for k, v in validated.items():
+            if k == "visitor":
+                continue
+            setattr(instance, k, v)
+
+        instance.updated_by = user
+        instance.save()
+        return instance

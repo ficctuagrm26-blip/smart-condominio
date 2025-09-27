@@ -7,6 +7,7 @@ from django.core.validators import MinValueValidator, MaxValueValidator
 from decimal import Decimal
 from datetime import date
 from django.utils import timezone
+from django.conf import settings
 #CREAMOS UNA TABLA DE TIPO ROL 
 BASE_CHOICES = [
     ("ADMIN", "Admin"),
@@ -535,3 +536,101 @@ class StaffKind(models.Model):
 
     def __str__(self):
         return self.name
+    
+#VISITANTES
+# VISITANTES
+class Visitor(models.Model):
+    DOC_TYPES = [
+        ("CI", "Cédula"),
+        ("PASS", "Pasaporte"),
+        ("OTRO", "Otro"),
+    ]
+    full_name  = models.CharField(max_length=120)
+    doc_type   = models.CharField(max_length=10, choices=DOC_TYPES, default="CI")
+    doc_number = models.CharField(max_length=40, db_index=True)
+    phone      = models.CharField(max_length=30, blank=True)
+    # photo = models.ImageField(upload_to="visitors/", blank=True, null=True)
+
+    class Meta:
+        unique_together = [("doc_type", "doc_number")]
+
+    def save(self, *args, **kwargs):
+        # Normalización SOLO de campos de Visitor
+        if self.doc_number:
+            self.doc_number = self.doc_number.strip().upper()
+        if self.full_name:
+            self.full_name = " ".join(self.full_name.split())
+        if self.phone:
+            self.phone = self.phone.strip()
+        super().save(*args, **kwargs)
+
+    def __str__(self):
+        return f"{self.full_name} ({self.doc_type}-{self.doc_number})"
+
+
+
+class Visit(models.Model):
+    STATUS = [
+        ("REGISTRADO", "Registrado"),
+        ("INGRESADO", "Ingresado"),
+        ("SALIDO", "Salido"),
+        ("CANCELADO", "Cancelado"),
+        ("DENEGADO", "Denegado"),
+    ]
+
+    visitor = models.ForeignKey(Visitor, on_delete=models.PROTECT, related_name="visits")
+    unit = models.ForeignKey("smartcondominio.Unidad", on_delete=models.PROTECT, related_name="visits")
+    host_resident = models.ForeignKey(
+        settings.AUTH_USER_MODEL,
+        on_delete=models.PROTECT,
+        related_name="hosted_visits",
+        help_text="Residente/anfitrión de la unidad",
+    )
+
+    vehicle_plate = models.CharField(max_length=15, blank=True, db_index=True)
+    purpose = models.CharField(max_length=140, blank=True)
+    scheduled_for = models.DateTimeField(null=True, blank=True)
+
+    status = models.CharField(max_length=12, choices=STATUS, default="REGISTRADO", db_index=True)
+    entry_at = models.DateTimeField(null=True, blank=True)
+    exit_at = models.DateTimeField(null=True, blank=True)
+
+    notes = models.TextField(blank=True)
+
+    created_at = models.DateTimeField(auto_now_add=True)
+    created_by = models.ForeignKey(settings.AUTH_USER_MODEL, on_delete=models.PROTECT, related_name="visits_created")
+    updated_at = models.DateTimeField(auto_now=True)
+    updated_by = models.ForeignKey(settings.AUTH_USER_MODEL, on_delete=models.PROTECT, related_name="visits_updated", null=True, blank=True)
+    entry_by   = models.ForeignKey(settings.AUTH_USER_MODEL, on_delete=models.PROTECT, related_name="visits_entry_by", null=True, blank=True)
+    exit_by    = models.ForeignKey(settings.AUTH_USER_MODEL, on_delete=models.PROTECT, related_name="visits_exit_by",  null=True, blank=True)
+
+    class Meta:
+        indexes = [
+            models.Index(fields=["status"]),
+            models.Index(fields=["vehicle_plate"]),
+            models.Index(fields=["created_at"]),
+        ]
+        ordering = ["-created_at"]
+
+    def save(self, *args, **kwargs):
+        # Normalización de placa AQUÍ (en Visit, no en Visitor)
+        if self.vehicle_plate:
+            self.vehicle_plate = self.vehicle_plate.strip().upper().replace(" ", "")
+        super().save(*args, **kwargs)
+
+    def clean(self):
+        from django.core.exceptions import ValidationError
+        if self.exit_at and not self.entry_at:
+            raise ValidationError("No puede haber salida sin una entrada registrada.")
+        if self.exit_at and self.entry_at and self.exit_at < self.entry_at:
+            raise ValidationError("La hora de salida no puede ser anterior a la hora de entrada.")
+
+    def mark_entry(self, user):
+        self.entry_at = timezone.now()
+        self.entry_by = user
+        self.status = "INGRESADO"
+
+    def mark_exit(self, user):
+        self.exit_at = timezone.now()
+        self.exit_by = user
+        self.status = "SALIDO"

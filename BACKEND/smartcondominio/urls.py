@@ -2,7 +2,7 @@ from django.urls import path
 from .views_api import (
     RegisterView, me, AdminUserViewSet, me_update, change_password,
     RolViewSet, PermissionViewSet, UnidadViewSet, CuotaViewSet, PagoViewSet,
-    InfraccionViewSet, EstadoCuentaView, EstadoCuentaExportCSV, TareaViewSet, StaffViewSet  # <-- ya lo importaste
+    InfraccionViewSet, EstadoCuentaView, EstadoCuentaExportCSV, TareaViewSet, StaffViewSet, VisitorViewSet, VisitViewSet # <-- ya lo importaste
 )
 from rest_framework.routers import DefaultRouter
 from rest_framework.authtoken.views import obtain_auth_token
@@ -19,6 +19,8 @@ router.register(r'avisos', AvisoViewSet, basename='avisos')
 router.register(r'tareas', TareaViewSet, basename='tareas')
 router.register(r'areas-comunes', AreaComunViewSet, basename='area-comun')
 router.register(r'staff', StaffViewSet, basename='staff')
+router.register(r"visitors", VisitorViewSet, basename="visitors")
+router.register(r"visits", VisitViewSet, basename="visits")
 
 
 

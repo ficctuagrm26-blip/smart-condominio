@@ -22,7 +22,7 @@ import RolesPage from "./pages/Roles";
 import Permisos from "./pages/Permisos";
 // NUEVO
 import AsignarTareasPage from "./pages/AsignarTareasPage";
-import PersonalPage from "./pages/PersonalPage";
+import VisitsPage from "./pages/VisitsPage";
 import StaffPage from "./pages/StaffPage";
 // Áreas comunes
 import AreasDisponibilidad from "./pages/AreasDisponibilidad"; // CU16
@@ -90,6 +90,15 @@ export default function App() {
             element={
               <RequireRole allow={["ADMIN"]}>
                 <UnitsPage />
+              </RequireRole>
+            }
+          />
+           {/* Visitas: deja que entren ADMIN/STAFF/RESIDENT */}
+          <Route
+            path="visits"
+            element={
+              <RequireRole allow={["ADMIN", "STAFF", "RESIDENT"]}>
+                <VisitsPage />
               </RequireRole>
             }
           />
