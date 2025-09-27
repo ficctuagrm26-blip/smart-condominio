@@ -8,11 +8,17 @@ from decimal import Decimal
 from datetime import date
 from django.utils import timezone
 #CREAMOS UNA TABLA DE TIPO ROL 
+BASE_CHOICES = [
+    ("ADMIN", "Admin"),
+    ("STAFF", "Staff"),
+    ("RESIDENT", "Resident"),
+]
 class Rol(models.Model):
     code = models.CharField(max_length=30, unique=True)   # Ej: ADMIN
     name = models.CharField(max_length=50)                # Ej: Administrador
     description = models.TextField(blank=True)
     is_system = models.BooleanField(default=False)  # protege roles base
+    base = models.CharField(max_length=10, choices= BASE_CHOICES, default="STAFF") 
     permissions = models.ManyToManyField(Permission, blank=True, related_name="roles")
     
     class Meta:
@@ -30,8 +36,19 @@ class Rol(models.Model):
 class Profile(models.Model):
     user = models.OneToOneField(User, on_delete=models.CASCADE)
     role = models.ForeignKey(Rol, null=True, blank=True, on_delete=models.SET_NULL)
+
+    # Usa string para evitar el NameError por orden de definición
+    staff_kind = models.ForeignKey(
+        "smartcondominio.StaffKind",  # o simplemente "StaffKind"
+        null=True, blank=True,
+        on_delete=models.SET_NULL,
+        related_name="profiles",
+    )
+    staff_kind_text = models.CharField(max_length=80, blank=True, default="")
     def __str__(self):
-        return f"{self.user.username} ({self.role.code if self.role else 'Sin rol'})"
+        role_code = self.role.code if self.role else "Sin rol"
+        kind = self.staff_kind.name if self.staff_kind else (self.staff_kind_text or "")
+        return f"{self.user.username} ({role_code}{' · ' + kind if kind else ''})"
 
 @receiver(post_save, sender=User)
 def ensure_profile(sender, instance, created, **kwargs):
@@ -497,3 +514,19 @@ class ReservaArea(models.Model):
 
     def __str__(self):
         return f"{self.area} {self.fecha_inicio} - {self.fecha_fin} ({self.estado})"
+
+
+class StaffKind(models.Model):
+    """
+    Catálogo opcional de tipos de personal (Guardia, Limpieza, Jardinería...).
+    Puedes crear/editar/eliminar libremente.
+    """
+    name = models.CharField(max_length=60, unique=True)
+    description = models.TextField(blank=True)
+    active = models.BooleanField(default=True)
+
+    class Meta:
+        ordering = ["name"]
+
+    def __str__(self):
+        return self.name

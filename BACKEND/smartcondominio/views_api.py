@@ -3,7 +3,7 @@ from rest_framework.views import APIView
 from django.db import IntegrityError
 from django.db.models import Q, Sum, F, DecimalField, ExpressionWrapper
 from django.db.models.deletion import ProtectedError, RestrictedError
-from rest_framework import status, permissions, viewsets, filters
+from rest_framework import status, permissions, viewsets, filters, serializers
 from rest_framework.authentication import TokenAuthentication
 from rest_framework.decorators import api_view, permission_classes, authentication_classes, action
 from rest_framework.permissions import IsAuthenticated
@@ -82,9 +82,9 @@ class AdminUserViewSet(viewsets.ModelViewSet):
         qs = super().get_queryset()
         group = self.request.query_params.get("group")
         if group == "residents":
-            qs = qs.filter(profile__role__code="RESIDENT")
+            qs = qs.filter(profile__role__base="RESIDENT")
         elif group == "staff":
-            qs = qs.filter(Q(profile__role__code__in=["STAFF", "ADMIN"]) | Q(is_superuser=True))
+            qs = qs.filter(profile__role__base="STAFF").exclude(is_superuser=True)
         return qs
 
     def destroy(self, request, *args, **kwargs):
@@ -119,14 +119,14 @@ class AdminUserViewSet(viewsets.ModelViewSet):
     # listas rápidas
     @action(detail=False, methods=["get"], url_path="residents")
     def residents(self, request):
-        qs = self.filter_queryset(self.get_queryset().filter(profile__role__code="RESIDENT"))
+        qs = self.filter_queryset(self.get_queryset().filter(profile__role__base="RESIDENT"))
         page = self.paginate_queryset(qs)
         ser = self.get_serializer(page or qs, many=True)
         return self.get_paginated_response(ser.data) if page is not None else Response(ser.data)
 
     @action(detail=False, methods=["get"], url_path="staff")
     def staff(self, request):
-        qs = self.filter_queryset(self.get_queryset().filter(Q(profile__role__code__in=["STAFF", "ADMIN"]) | Q(is_superuser=True)))
+        qs = self.filter_queryset(self.get_queryset().filter(profile__role__base="STAFF").exclude(is_superuser=True))
         page = self.paginate_queryset(qs)
         ser = self.get_serializer(page or qs, many=True)
         return self.get_paginated_response(ser.data) if page is not None else Response(ser.data)
@@ -832,3 +832,70 @@ class AreaComunViewSet(viewsets.ModelViewSet):
         }
         resp = DisponibilidadResponseSerializer(data)
         return Response(resp.data)
+class StaffViewSet(viewsets.ModelViewSet):
+    """
+    CRUD de PERSONAL (sub-roles con Rol.base='STAFF').
+    """
+    serializer_class = AdminUserSerializer
+    authentication_classes = [TokenAuthentication]
+    permission_classes = [IsAuthenticated, IsAdmin]
+    queryset = User.objects.select_related("profile", "profile__role").all().order_by("id")
+
+    # Habilita búsqueda (?search=) y orden (?ordering=)
+    filter_backends = [filters.SearchFilter, filters.OrderingFilter]
+    search_fields = ["username", "first_name", "last_name", "email", "profile__role__code", "profile__role__name"]
+    ordering_fields = ["id", "username", "first_name", "last_name", "email"]
+
+    def get_queryset(self):
+        # Solo personal (base STAFF), excluye superusuarios
+        qs = super().get_queryset().filter(
+            profile__role__base="STAFF"
+        ).exclude(is_superuser=True)
+
+        # Alias para ?q= como búsqueda rápida (además de ?search= propio de DRF)
+        q = (self.request.query_params.get("q") or "").strip()
+        if q:
+            qs = qs.filter(
+                Q(username__icontains=q) |
+                Q(first_name__icontains=q) |
+                Q(last_name__icontains=q) |
+                Q(email__icontains=q)
+            )
+        return qs
+
+    def _ensure_staff_role(self, data: dict) -> dict:
+        code = (data.get("role_code") or "").strip().upper()
+        if not code:
+            data["role_code"] = "STAFF"
+            return data
+        try:
+            r = Rol.objects.get(code=code)
+        except Rol.DoesNotExist:
+            raise serializers.ValidationError({"role_code": "Rol no existe."})
+        if r.base != "STAFF":
+            raise serializers.ValidationError({"role_code": "Debe ser un rol de base STAFF."})
+        return data
+
+    def create(self, request, *args, **kwargs):
+        data = self._ensure_staff_role(request.data.copy())
+        ser = self.get_serializer(data=data)
+        ser.is_valid(raise_exception=True)
+        user = ser.save()
+        role = Rol.objects.get(code=data["role_code"])
+        Profile.objects.update_or_create(user=user, defaults={"role": role})
+        return Response(self.get_serializer(user).data, status=status.HTTP_201_CREATED)
+
+    def update(self, request, *args, **kwargs):
+        instance = self.get_object()
+        data = self._ensure_staff_role(request.data.copy())
+        partial = kwargs.pop("partial", False)
+        ser = self.get_serializer(instance, data=data, partial=partial)
+        ser.is_valid(raise_exception=True)
+        user = ser.save()
+        role = Rol.objects.get(code=data["role_code"])
+        Profile.objects.update_or_create(user=user, defaults={"role": role})
+        return Response(self.get_serializer(user).data)
+
+    def partial_update(self, request, *args, **kwargs):
+        kwargs["partial"] = True
+        return self.update(request, *args, **kwargs)

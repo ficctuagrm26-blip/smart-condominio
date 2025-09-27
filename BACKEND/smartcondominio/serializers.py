@@ -2,7 +2,7 @@ from rest_framework import serializers
 from django.contrib.auth import get_user_model, authenticate, password_validation
 from django.db import transaction
 from django.core.exceptions import ObjectDoesNotExist
-from .models import Profile, Rol, Unidad, Cuota, Pago, Infraccion
+from .models import Profile, Rol, Unidad, Cuota, Pago, Infraccion, StaffKind
 from django.contrib.auth.models import Permission  # 👈 necesario para PermissionBriefSerializer
 User = get_user_model()
 
@@ -21,16 +21,51 @@ def _resolve_role(role_id=None, role_code=None, default_code="RESIDENT"):
 # ---------- Me ----------
 class MeSerializer(serializers.ModelSerializer):
     role = serializers.SerializerMethodField()
+    role_base = serializers.SerializerMethodField()
+    staff_kind = serializers.SerializerMethodField()
+    staff_kind_id = serializers.SerializerMethodField()
+    staff_kind_text = serializers.SerializerMethodField()
 
     class Meta:
         model = User
-        fields = ["id", "username", "email", "first_name", "last_name", "role"]
+        fields = [
+            "id", "username", "email", "first_name", "last_name",
+            "role", "role_base", "staff_kind", "staff_kind_id", "staff_kind_text"
+        ]
 
     def get_role(self, obj):
         try:
             return getattr(obj.profile.role, "code", "RESIDENT")
         except ObjectDoesNotExist:
             return "RESIDENT"
+
+    def get_role_base(self, obj):
+        try:
+            return getattr(obj.profile.role, "base", None)
+        except ObjectDoesNotExist:
+            return None
+
+    def get_staff_kind(self, obj):
+        try:
+            sk = getattr(obj.profile, "staff_kind", None)
+            if sk:
+                return sk.name
+            txt = getattr(obj.profile, "staff_kind_text", "") or ""
+            return txt or None
+        except ObjectDoesNotExist:
+            return None
+
+    def get_staff_kind_id(self, obj):
+        try:
+            return getattr(getattr(obj.profile, "staff_kind", None), "id", None)
+        except ObjectDoesNotExist:
+            return None
+
+    def get_staff_kind_text(self, obj):
+        try:
+            return getattr(obj.profile, "staff_kind_text", "") or ""
+        except ObjectDoesNotExist:
+            return ""
 
 # ---------- Registro ----------
 class RegisterSerializer(serializers.ModelSerializer):
@@ -54,24 +89,55 @@ class RegisterSerializer(serializers.ModelSerializer):
 
 # ---------- Admin: CRUD usuarios ----------
 class AdminUserSerializer(serializers.ModelSerializer):
-    role      = serializers.SerializerMethodField(read_only=True)  # devuelve code
-    role_id   = serializers.IntegerField(required=False, write_only=True)
+    # Lectura
+    role = serializers.SerializerMethodField(read_only=True)  # code
+    role_base = serializers.SerializerMethodField(read_only=True)
+    staff_kind = serializers.SerializerMethodField(read_only=True)  # nombre ó texto
+
+    # Escritura
+    role_id = serializers.IntegerField(required=False, write_only=True)
     role_code = serializers.CharField(required=False, write_only=True)
-    password  = serializers.CharField(write_only=True, required=False, allow_blank=True, min_length=6)
+    password = serializers.CharField(write_only=True, required=False, allow_blank=True, min_length=6)
+
+    staff_kind_id = serializers.IntegerField(required=False, write_only=True, allow_null=True)
+    staff_kind_text = serializers.CharField(required=False, write_only=True, allow_blank=True)
 
     class Meta:
         model = User
         fields = [
             "id","username","email","first_name","last_name",
-            "is_active","role","role_id","role_code","password"
+            "is_active",
+            # rol
+            "role","role_base","role_id","role_code",
+            # tipo de personal
+            "staff_kind","staff_kind_id","staff_kind_text",
+            # seguridad
+            "password",
         ]
 
+    # === Getters lectura ===
     def get_role(self, instance):
         try:
             return getattr(instance.profile.role, "code", "RESIDENT")
         except ObjectDoesNotExist:
             return "RESIDENT"
 
+    def get_role_base(self, instance):
+        try:
+            return getattr(instance.profile.role, "base", None)
+        except ObjectDoesNotExist:
+            return None
+
+    def get_staff_kind(self, instance):
+        try:
+            p = instance.profile
+            if p.staff_kind:
+                return p.staff_kind.name
+            return p.staff_kind_text or None
+        except ObjectDoesNotExist:
+            return None
+
+    # === Validación de unicidad (como lo tenías) ===
     def validate(self, attrs):
         instance = getattr(self, "instance", None)
         UserModel = get_user_model()
@@ -88,26 +154,60 @@ class AdminUserSerializer(serializers.ModelSerializer):
                 raise serializers.ValidationError({"email": "Ya está en uso."})
         return attrs
 
+    # === Helpers internos ===
+    def _apply_role_and_staff_kind(self, user, role_id, role_code, staff_kind_id, staff_kind_text):
+        """Asigna role y, si base=STAFF, el tipo de personal (FK o texto)."""
+        # 1) Rol
+        role = _resolve_role(role_id, role_code, default_code="RESIDENT")
+        profile, _ = Profile.objects.get_or_create(user=user)
+        profile.role = role
+
+        # 2) Tipo de personal
+        if getattr(role, "base", None) == "STAFF":
+            sk_obj = None
+            if staff_kind_id is not None:
+                # staff_kind_id explícito
+                if staff_kind_id:
+                    try:
+                        sk_obj = StaffKind.objects.get(pk=staff_kind_id, is_active=True)
+                    except StaffKind.DoesNotExist:
+                        raise serializers.ValidationError({"staff_kind_id": "Tipo de personal inválido."})
+                # si viene null, se limpia (permite quitar FK y usar texto)
+            profile.staff_kind = sk_obj
+            profile.staff_kind_text = (staff_kind_text or "").strip()
+        else:
+            # No es staff → limpiar
+            profile.staff_kind = None
+            profile.staff_kind_text = ""
+
+        profile.save(update_fields=["role", "staff_kind", "staff_kind_text"])
+
+    # === Create ===
     @transaction.atomic
     def create(self, validated_data):
         role_id   = validated_data.pop("role_id", None)
         role_code = validated_data.pop("role_code", None)
         password  = validated_data.pop("password", None)
+        staff_kind_id = validated_data.pop("staff_kind_id", None)
+        staff_kind_text = validated_data.pop("staff_kind_text", "")
 
         user = User(**validated_data)
         user.set_password(password or User.objects.make_random_password())
         user.save()
 
-        role = _resolve_role(role_id, role_code, default_code="RESIDENT")
-        Profile.objects.update_or_create(user=user, defaults={"role": role})
+        self._apply_role_and_staff_kind(user, role_id, role_code, staff_kind_id, staff_kind_text)
         return user
 
+    # === Update ===
     @transaction.atomic
     def update(self, instance, validated_data):
         role_id   = validated_data.pop("role_id", None)
         role_code = validated_data.pop("role_code", None)
         password  = validated_data.pop("password", None)
+        staff_kind_id = validated_data.pop("staff_kind_id", None)
+        staff_kind_text = validated_data.pop("staff_kind_text", "")
 
+        # Campos simples del User
         for attr, value in validated_data.items():
             setattr(instance, attr, value)
 
@@ -115,9 +215,9 @@ class AdminUserSerializer(serializers.ModelSerializer):
             instance.set_password(password)
         instance.save()
 
-        if role_id is not None or role_code is not None:
-            role = _resolve_role(role_id, role_code, default_code="RESIDENT")
-            Profile.objects.update_or_create(user=instance, defaults={"role": role})
+        # Solo si se envió role_id/role_code o staff_kind*, aplicamos cambios a Profile
+        if role_id is not None or role_code is not None or staff_kind_id is not None or staff_kind_text is not None:
+            self._apply_role_and_staff_kind(instance, role_id, role_code, staff_kind_id, staff_kind_text)
 
         return instance
 
@@ -212,7 +312,7 @@ class PermissionBriefSerializer(serializers.ModelSerializer):
 class RolSimpleSerializer(serializers.ModelSerializer):
     class Meta:
         model = Rol
-        fields = ["id", "code", "name", "description", "is_system"]
+        fields = ["id", "code", "name", "description", "is_system", "base"]
         read_only_fields = ["id", "is_system"]  # que no lo cambien por API
 
     def validate_code(self, value):
@@ -583,3 +683,10 @@ class DisponibilidadResponseSerializer(serializers.Serializer):
     slot_minutes = serializers.IntegerField()
     windows = AreaDisponibilidadWindowSerializer(many=True)
     slots = SlotSerializer(many=True)
+    
+class StaffKindSerializer(serializers.ModelSerializer):
+    class Meta:
+        model = StaffKind
+        fields = ["id", "code", "name", "is_active", "created_at", "updated_at"]
+        read_only_fields = ["id", "created_at", "updated_at"]
+

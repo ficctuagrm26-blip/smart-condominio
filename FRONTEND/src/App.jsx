@@ -22,7 +22,8 @@ import RolesPage from "./pages/Roles";
 import Permisos from "./pages/Permisos";
 // NUEVO
 import AsignarTareasPage from "./pages/AsignarTareasPage";
-
+import PersonalPage from "./pages/PersonalPage";
+import StaffPage from "./pages/StaffPage";
 // Áreas comunes
 import AreasDisponibilidad from "./pages/AreasDisponibilidad"; // CU16
 import AreaReservaNueva from "./pages/AreaReservaNueva"; // CU17
@@ -74,7 +75,15 @@ export default function App() {
               </RequireRole>
             }
           />
-
+          <Route
+            path="/personal"
+            element={
+              <RequireRole roles={["ADMIN"]}>
+                <StaffPage />
+              </RequireRole>
+            }
+          />
+           
           {/* Unidades, cuotas, infracciones */}
           <Route
             path="admin/unidades"

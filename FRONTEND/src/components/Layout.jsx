@@ -183,6 +183,14 @@ export default function Layout() {
               >
                 Consultar Estado de Cuenta (CU10)
               </NavLink>
+              <NavLink
+                to="/personal"
+                className={({ isActive }) =>
+                  `nav__sublink ${isActive ? "active" : ""}`
+                }
+              >
+                Gestionar Personal (CU14)
+              </NavLink>
                {/* ---- Gestión de usuarios ---- */}
               <div className="nav__package">
                 <button
