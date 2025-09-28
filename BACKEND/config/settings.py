@@ -164,10 +164,12 @@ SITE_URL = os.environ.get("SITE_URL", "http://localhost:8000")
 
 
 #ia
-load_dotenv(BASE_DIR / ".env")
+load_dotenv()
 PLATE_RECOG_TOKEN = os.getenv("PLATE_RECOG_TOKEN", "")
 PLATE_REGIONS = os.getenv("PLATE_REGIONS", "bo")
 OCR_CONFIDENCE_THRESHOLD = float(os.getenv("OCR_CONFIDENCE_THRESHOLD", "0.60"))
 VISITOR_TIME_TOLERANCE_MIN = int(os.getenv("VISITOR_TIME_TOLERANCE_MIN", "10"))
 
 OPEN_ON_ALLOW = os.getenv("OPEN_ON_ALLOW", "false").lower() == "true"
+
+FACE_THRESHOLD = float(os.environ.get("FACE_THRESHOLD", "0.40"))

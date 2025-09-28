@@ -16,7 +16,7 @@ from .models import (
     Tarea, TareaComentario,
     Vehiculo, SolicitudVehiculo,
     Aviso,
-    MockReceipt, OnlinePaymentIntent,
+    MockReceipt, OnlinePaymentIntent, AccessEvent
 )
 
 User = get_user_model()
@@ -911,3 +911,23 @@ class SnapshotInSerializer(serializers.Serializer):
     gate_id = serializers.IntegerField(required=False)  # opcional si aún no tienes Gate
     camera_id = serializers.CharField(required=False, allow_blank=True)
     image = serializers.ImageField(required=True)
+    
+class AccessEventSerializer(serializers.ModelSerializer):
+    class Meta:
+        model = AccessEvent
+        fields = [
+            "id",
+            "created_at",
+            "camera_id",
+            "plate_raw",
+            "plate_norm",
+            "score",
+            "decision",
+            "reason",
+            "opened",
+            "vehicle",
+            "visit",
+            "payload",
+            "triggered_by",
+        ]
+        read_only_fields = ["id", "created_at"]

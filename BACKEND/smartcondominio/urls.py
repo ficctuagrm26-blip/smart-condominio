@@ -2,7 +2,8 @@
 from django.urls import path
 from rest_framework.routers import DefaultRouter
 from rest_framework.authtoken.views import obtain_auth_token
-
+from .views_face_dry import FaceIdentifyAWSDryRunView
+from .views_face import FaceRegisterAWSView, FaceIdentifyAndLogAWSView
 from .views_api import (
     # Auth / perfil
     RegisterView, me, me_update, change_password,
@@ -52,7 +53,12 @@ urlpatterns = [
     path('pagos/mock/verify/', MockVerifyReceiptView.as_view(), name='mock-verify'),
     path("access/snapshot-check/", SnapshotCheckView.as_view(), name="snapshot-check"),
     path("access/snapshot-ping/", SnapshotPingView.as_view()),
+    #IA
+    path("face/register-aws/", FaceRegisterAWSView.as_view(), name="face-register-aws"),
+    path("face/identify-and-log-aws/", FaceIdentifyAndLogAWSView.as_view(), name="face-identify-and-log-aws"),
+     path("face/identify-aws-dry/", FaceIdentifyAWSDryRunView.as_view(), name="face-identify-aws-dry"),
 ]
 
 # Rutas del router
 urlpatterns += router.urls
+

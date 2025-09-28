@@ -31,6 +31,8 @@ import AreaReservaNueva from "./pages/AreaReservaNueva";
 import VehiculosPage from "./pages/VehiculosPage";
 import VisitsPage from "./pages/VisitsPage";
 import AccessControl from "./pages/AccessControl";
+import FaceEnroll from "./pages/FaceEnroll";
+import FaceIdentify from "./pages/FaceIdentify";
 export default function App() {
   return (
     <BrowserRouter>
@@ -115,6 +117,22 @@ export default function App() {
             element={
               <RequireRole allow={["ADMIN"," STAFF"]}>
                 <AccessControl />
+              </RequireRole>
+            }
+          />
+          <Route
+            path="face/enroll"
+            element={
+              <RequireRole allow={["ADMIN"," STAFF"]}>
+                <FaceEnroll />
+              </RequireRole>
+            }
+          />
+          <Route
+            path="face/identify"
+            element={
+              <RequireRole allow={["ADMIN"," STAFF"]}>
+                <FaceIdentify />
               </RequireRole>
             }
           />

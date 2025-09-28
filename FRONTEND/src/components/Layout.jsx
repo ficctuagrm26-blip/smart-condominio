@@ -275,6 +275,8 @@ export default function Layout() {
           >
             <NavItem to="/acceso-vehicular">Acceso Vehicular (CU23)</NavItem>
             <NavItem to="/visits/">Gestionar Visitas (CU22)</NavItem>
+            <NavItem to="/face/enroll">Enrolar Rostros (CU23)</NavItem>
+            <NavItem to="/face/identify">Reconocimiento facial (CU23)</NavItem>
           </NavGroup>
         </div>
         
