@@ -871,3 +871,23 @@ class MockReceipt(models.Model):
         from django.core.exceptions import ValidationError
         if self.amount is not None and self.amount <= Decimal("0"):
             raise ValidationError({"amount": "El monto (si se informa) debe ser > 0."})
+#IA BITACORA DE INGRESO
+# --- Accesos vehiculares (bitácora) ---
+class AccessEvent(models.Model):
+    created_at   = models.DateTimeField(auto_now_add=True)
+    camera_id    = models.CharField(max_length=60, blank=True)
+    plate_raw    = models.CharField(max_length=30, blank=True)
+    plate_norm   = models.CharField(max_length=30, db_index=True, blank=True)
+    score        = models.FloatField(null=True, blank=True)
+    decision     = models.CharField(max_length=32)   # ALLOW_RESIDENT | ALLOW_VISIT | DENY_UNKNOWN | ERROR_OCR
+    reason       = models.CharField(max_length=200, blank=True)
+    opened       = models.BooleanField(default=False)
+
+    vehicle      = models.ForeignKey("smartcondominio.Vehiculo", null=True, blank=True, on_delete=models.SET_NULL)
+    visit        = models.ForeignKey("smartcondominio.Visit",    null=True, blank=True, on_delete=models.SET_NULL)
+
+    payload      = models.JSONField(default=dict, blank=True)   # respuesta completa de Plate Recognizer (opcional)
+    triggered_by = models.ForeignKey(settings.AUTH_USER_MODEL, null=True, blank=True, on_delete=models.SET_NULL)
+
+    class Meta:
+        ordering = ["-created_at"]

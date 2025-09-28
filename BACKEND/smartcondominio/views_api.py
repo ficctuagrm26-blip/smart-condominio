@@ -2,7 +2,7 @@
 from rest_framework import status, permissions, viewsets, filters, serializers, mixins
 from rest_framework import generics
 from rest_framework.views import APIView
-
+import requests, traceback
 from rest_framework.authentication import TokenAuthentication
 from rest_framework.decorators import api_view, permission_classes, authentication_classes, action
 from rest_framework.permissions import IsAuthenticated
@@ -26,7 +26,7 @@ from .models import (
     Tarea, TareaComentario,
     AreaComun, AreaDisponibilidad, ReservaArea,
     Vehiculo, SolicitudVehiculo,
-    OnlinePaymentIntent, MockReceipt,
+    OnlinePaymentIntent, MockReceipt, AccessEvent
 )
 
 from .permissions import (
@@ -46,9 +46,16 @@ from .serializers import (
     VehiculoSerializer, SolicitudVehiculoCreateSerializer,
     SolicitudVehiculoListSerializer, SolicitudVehiculoReviewSerializer,
     OnlinePaymentIntentSerializer, MockReceiptSerializer,
-    AvisoSerializer
+    AvisoSerializer, SnapshotInSerializer
 )
+from .services_snapshot import PlateRecognizerSnapshot, best_plate_from_result
+from django.conf import settings
 
+def norm_plate(txt: str) -> str:
+    return "".join(ch for ch in (txt or "").upper() if ch.isalnum())
+
+def should_open(decision: str) -> bool:
+    return decision in {"ALLOW_RESIDENT", "ALLOW_VISITOR", "MANUAL_ALLOW"}
 User = get_user_model()
 
 # ===================== AUTH / PROFILE =====================
@@ -1132,3 +1139,173 @@ class MockVerifyReceiptView(APIView):
         intent.save(update_fields=["status", "paid_at"])
 
         return Response({"detail": "Aprobado", "pago": PagoSerializer(pago).data}, status=200)
+
+
+class SnapshotCheckView(APIView):
+    authentication_classes = [TokenAuthentication]
+    permission_classes = [IsAuthenticated]
+
+    @transaction.atomic
+    def post(self, request):
+        try:
+            ser = SnapshotInSerializer(data=request.data)
+            ser.is_valid(raise_exception=True)
+
+            camera_id = ser.validated_data.get("camera_id") or ""
+            img = ser.validated_data.get("image")
+            if not img:
+                return Response({"detail": "Falta imagen en serializer"}, status=400)
+
+            # 1) Plate Recognizer
+            try:
+                payload = PlateRecognizerSnapshot.read_image(
+                    img.file,
+                    regions=getattr(settings, "PLATE_REGIONS", "bo"),
+                    camera_id=camera_id or None
+                )
+            except requests.HTTPError as he:
+                return Response(
+                    {"detail": "HTTPError Plate Recognizer", "status_code": he.response.status_code, "body": he.response.text},
+                    status=he.response.status_code
+                )
+            except Exception as e:
+                return Response({"detail": f"Error Snapshot: {e}"}, status=502)
+
+            # 2) Mejor lectura
+            placa_raw, score = best_plate_from_result(payload)
+            placa = norm_plate(placa_raw)
+            thr = float(getattr(settings, "OCR_CONFIDENCE_THRESHOLD", 0.60))
+
+            # helper para grabar evento
+            def log_event(decision, reason, opened=False, vehicle=None, visit=None):
+                AccessEvent.objects.create(
+                    camera_id=camera_id,
+                    plate_raw=placa_raw or "",
+                    plate_norm=placa or "",
+                    score=score,
+                    decision=decision,
+                    reason=reason,
+                    opened=opened,
+                    vehicle=vehicle,
+                    visit=visit,
+                    payload=payload,
+                    triggered_by=request.user,
+                )
+
+            # 3) Decisión
+            if not placa or (score is not None and float(score) < thr):
+                log_event("ERROR_OCR", "confianza baja o vacío", opened=False)
+                return Response({
+                    "decision": "ERROR_OCR",
+                    "reason": "confianza baja o vacío",
+                    "plate": placa,
+                    "score": score,
+                    "opened": False
+                }, status=201)
+
+            vehicle = (Vehiculo.objects
+                       .filter(placa__iexact=placa, activo=True)
+                       .select_related("propietario", "unidad")
+                       .first())
+            if vehicle:
+                opened = False
+                if getattr(settings, "OPEN_ON_ALLOW", False):
+                    # TODO: integra tu barrera real aquí
+                    opened = True
+
+                log_event("ALLOW_RESIDENT", "vehículo residente activo", opened=opened, vehicle=vehicle)
+                return Response({
+                    "decision": "ALLOW_RESIDENT",
+                    "reason": "vehículo residente activo",
+                    "plate": placa,
+                    "score": score,
+                    "opened": opened,
+                    "vehicle_id": vehicle.id,
+                    "owner_id": vehicle.propietario_id,
+                    "unit_id": vehicle.unidad_id
+                }, status=201)
+
+            # visita (ventana de tolerancia)
+            tol_min = int(getattr(settings, "VISITOR_TIME_TOLERANCE_MIN", 10))
+            now = timezone.now()
+            tol_before = now - timezone.timedelta(minutes=tol_min)
+            tol_after  = now + timezone.timedelta(minutes=tol_min)
+
+            visit = (Visit.objects
+                     .filter(vehicle_plate__iexact=placa, status="REGISTRADO")
+                     .filter(models.Q(scheduled_for__isnull=True) | models.Q(scheduled_for__range=(tol_before, tol_after)))
+                     .order_by("-created_at")
+                     .first())
+            if visit:
+                opened = False
+                if getattr(settings, "OPEN_ON_ALLOW", False):
+                    # TODO: integra tu barrera real aquí
+                    opened = True
+
+                log_event("ALLOW_VISIT", "visita registrada vigente", opened=opened, visit=visit)
+                return Response({
+                    "decision": "ALLOW_VISIT",
+                    "reason": "visita registrada vigente",
+                    "plate": placa,
+                    "score": score,
+                    "opened": opened,
+                    "visit_id": visit.id,
+                    "unit_id": visit.unit_id,
+                    "host_id": visit.host_resident_id
+                }, status=201)
+
+            # Denegado
+            log_event("DENY_UNKNOWN", "no coincide con residentes ni visitas registradas", opened=False)
+            return Response({
+                "decision": "DENY_UNKNOWN",
+                "reason": "no coincide con residentes ni visitas registradas",
+                "plate": placa,
+                "score": score,
+                "opened": False
+            }, status=201)
+
+        except Exception as e:
+            return Response(
+                {"detail": "Unhandled error", "error": str(e), "traceback": traceback.format_exc()},
+                status=500
+            )
+class SnapshotPingView(APIView):
+    authentication_classes = []      # temporal para probar sin auth
+    permission_classes = []          # temporal
+
+    def post(self, request):
+        try:
+            if "image" not in request.FILES:
+                return Response({"detail": "Falta 'image' (multipart/form-data)"}, status=400)
+
+            token = getattr(settings, "PLATE_RECOG_TOKEN", "")
+            if not token:
+                return Response({"detail": "PLATE_RECOG_TOKEN vacío en settings.py/.env"}, status=500)
+
+            img = request.FILES["image"]
+            r = requests.post(
+                "https://api.platerecognizer.com/v1/plate-reader/",
+                headers={"Authorization": f"Token {token}"},
+                files={"upload": img.file},
+                data={"regions": getattr(settings, "PLATE_REGIONS", "bo")},
+                timeout=15,
+            )
+            try:
+                r.raise_for_status()
+            except requests.HTTPError as he:
+                return Response(
+                    {"ok": False, "http_error": str(he), "status_code": r.status_code, "body": r.text},
+                    status=r.status_code
+                )
+
+            data = r.json()
+            results = data.get("results", [])
+            plate = results[0]["plate"] if results else ""
+            score = results[0].get("score") if results else None
+            return Response({"ok": True, "plate": plate, "score": score, "raw": data}, status=200)
+
+        except Exception as e:
+            return Response(
+                {"ok": False, "error": str(e), "traceback": traceback.format_exc()},
+                status=500
+            )

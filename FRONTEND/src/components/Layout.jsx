@@ -163,6 +163,7 @@ export default function Layout() {
             className={({ isActive }) =>
               `nav__link ${isActive ? "active" : ""}`
             }
+            
           >
             Mis vehículos
           </NavLink>
@@ -267,7 +268,16 @@ export default function Layout() {
             <NavItem to="/admin/cuotas">Gestionar Cuotas (CU08)</NavItem>
             <NavItem to="/admin/infracciones">Gestionar Infracciones (CU09)</NavItem>
           </NavGroup>
+          <NavGroup
+            title="GESTIONAR SEGURIDAD"
+            open={groups.reservas}
+            onToggle={() => toggle("reservas")}
+          >
+            <NavItem to="/acceso-vehicular">Acceso Vehicular (CU23)</NavItem>
+            <NavItem to="/visits/">Gestionar Visitas (CU22)</NavItem>
+          </NavGroup>
         </div>
+        
 
         {/* Footer fijo */}
         <div className="userbox userbox--sticky">

@@ -30,7 +30,7 @@ import AreasDisponibilidad from "./pages/AreasDisponibilidad";
 import AreaReservaNueva from "./pages/AreaReservaNueva";
 import VehiculosPage from "./pages/VehiculosPage";
 import VisitsPage from "./pages/VisitsPage";
-
+import AccessControl from "./pages/AccessControl";
 export default function App() {
   return (
     <BrowserRouter>
@@ -107,6 +107,14 @@ export default function App() {
             element={
               <RequireRole allow={["ADMIN"]}>
                 <InfraccionesPage />
+              </RequireRole>
+            }
+          />
+          <Route
+            path="acceso-vehicular"
+            element={
+              <RequireRole allow={["ADMIN"," STAFF"]}>
+                <AccessControl />
               </RequireRole>
             }
           />

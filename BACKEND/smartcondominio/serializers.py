@@ -904,3 +904,10 @@ class MockReceiptSerializer(serializers.ModelSerializer):
         if not attrs.get("receipt_url") and not attrs.get("reference"):
             raise serializers.ValidationError({"receipt_url": "Debes informar receipt_url o reference."})
         return attrs
+
+
+#ia
+class SnapshotInSerializer(serializers.Serializer):
+    gate_id = serializers.IntegerField(required=False)  # opcional si aún no tienes Gate
+    camera_id = serializers.CharField(required=False, allow_blank=True)
+    image = serializers.ImageField(required=True)

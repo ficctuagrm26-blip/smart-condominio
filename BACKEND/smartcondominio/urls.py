@@ -14,7 +14,7 @@ from .views_api import (
     # Vistas de Estado de cuenta
     EstadoCuentaView, EstadoCuentaExportCSV,
     # Mock pagos
-    MockCheckoutView, MockUploadReceiptView, MockVerifyReceiptView,
+    MockCheckoutView, MockUploadReceiptView, MockVerifyReceiptView, SnapshotCheckView, SnapshotPingView
 )
 
 router = DefaultRouter()
@@ -50,6 +50,8 @@ urlpatterns = [
     path('pagos/mock/checkout/', MockCheckoutView.as_view(), name='mock-checkout'),
     path('pagos/mock/upload-receipt/', MockUploadReceiptView.as_view(), name='mock-upload-receipt'),
     path('pagos/mock/verify/', MockVerifyReceiptView.as_view(), name='mock-verify'),
+    path("access/snapshot-check/", SnapshotCheckView.as_view(), name="snapshot-check"),
+    path("access/snapshot-ping/", SnapshotPingView.as_view()),
 ]
 
 # Rutas del router
