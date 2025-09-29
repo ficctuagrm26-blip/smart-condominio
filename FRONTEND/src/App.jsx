@@ -36,6 +36,7 @@ import ResidentVisitsPage from "./pages/ResidentVisitsPage";
 import AccessControl from "./pages/AccessControl";
 import FaceEnroll from "./pages/FaceEnroll";
 import FaceIdentify from "./pages/FaceIdentify";
+import EstadoCuenta from "./pages/EstadoCuenta";
 
 /* ===========================
    Helper: lee el rol del usuario
@@ -191,6 +192,7 @@ export default function App() {
           />
           
               <Route path="mis-visitas" element={<RequireRole allow={["RESIDENTE"]}><ResidentVisitsPage/></RequireRole>} />
+              <Route path="estado" element={<RequireRole allow={["RESIDENTE"]}><EstadoCuenta/></RequireRole>} />
           
 
           {/* Avisos */}

@@ -53,7 +53,10 @@ export default function Layout() {
     catch { return {}; }
   }, []);
 
-  const role = getRole(me) || (me?.is_superuser ? "ADMIN" : ""); // "ADMIN" | "STAFF" | "RESIDENT"
+  const role = getRole(me) || (me?.is_superuser ? "ADMIN" : "");
+  const isRes = role === "RESIDENTE";
+  const isStaff = role === "STAFF"; 
+  const isAdm = role === "ADMIN";// "ADMIN" | "STAFF" | "RESIDENT"
   const roleCode =
     me?.profile?.role?.code ||
     me?.profile?.role_code ||
@@ -274,9 +277,10 @@ export default function Layout() {
             onToggle={() => toggle("reservas")}
             hidden={!show.gUnidades}
           >
-            <NavItem to="/admin/unidades">Gestionar Unidades (CU07)</NavItem>
-            <NavItem to="/visits">Gestionar Visitas (CU22)</NavItem>
-            <NavItem to="/mis-visitas">Mis Visitas (CU22)</NavItem>
+            <NavItem to="/admin/unidades" hidden={!isAdm}>Gestionar Unidades (CU07)</NavItem>
+            <NavItem to="/visits" hidden={!isAdm && !isStaff}>Gestionar Visitas (CU22)</NavItem>
+            <NavItem to="/mis-visitas" hidden={!isRes}>Mis Visitas (CU22)</NavItem>
+            <NavItem to="/estado">Pagar QR (CU09)</NavItem>
           </NavGroup>
 
           <NavGroup
@@ -287,6 +291,7 @@ export default function Layout() {
           >
             <NavItem to="/admin/cuotas">Gestionar Cuotas (CU08)</NavItem>
             <NavItem to="/admin/infracciones">Gestionar Infracciones (CU09)</NavItem>
+            <NavItem to="/estado">Pagar QR (CU09)</NavItem>
           </NavGroup>
 
           <NavGroup
