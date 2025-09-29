@@ -25,7 +25,11 @@ from .serializers import (
     MeUpdateSerializer,
     ChangePasswordSerializer,
     RolSimpleSerializer,
-    PermissionBriefSerializer, UnidadSerializer, CuotaSerializer, PagoCreateSerializer, PagoSerializer,GenerarCuotasSerializer, InfraccionSerializer,PagoEstadoCuentaSerializer,UnidadBriefECSerializer, VisitorSerializer, VisitSerializer, OnlinePaymentIntentSerializer, MockReceiptSerializer, VehiculoSerializer, SolicitudVehiculo   # 👈 lo importamos (definido en serializers.py)
+    PermissionBriefSerializer, UnidadSerializer, CuotaSerializer, PagoCreateSerializer, PagoSerializer,GenerarCuotasSerializer, InfraccionSerializer,PagoEstadoCuentaSerializer,UnidadBriefECSerializer, VisitorSerializer, VisitSerializer, OnlinePaymentIntentSerializer, MockReceiptSerializer, VehiculoSerializer, SolicitudVehiculo, VisitWriteSerializer,
+    VisitApproveSerializer,
+    VisitDenySerializer,
+    VisitCheckInSerializer,
+    VisitCheckOutSerializer,   # 👈 lo importamos (definido en serializers.py)
 )
 from .models import Aviso, Unidad
 from .serializers import AvisoSerializer
@@ -64,7 +68,12 @@ class RegisterView(generics.CreateAPIView):
             status=status.HTTP_201_CREATED,
         )
 
-
+class IsResidentHost(IsAuthenticated):
+    """
+    Permite sólo al residente/anfitrión de la visita operar (aprobar/denegar).
+    """
+    def has_object_permission(self, request, view, obj):
+        return super().has_permission(request, view) and obj.host_resident_id == request.user.id
 # 👥 Admin de usuarios
 # --- REEMPLAZO COMPLETO DE AdminUserViewSet ---
 class AdminUserViewSet(viewsets.ModelViewSet):
@@ -928,7 +937,7 @@ class StaffViewSet(viewsets.ModelViewSet):
         kwargs["partial"] = True
         return self.update(request, *args, **kwargs)
     
-# VISITANTES
+# ========== VISITANTES ==========
 class VisitorViewSet(viewsets.ModelViewSet):
     queryset = Visitor.objects.all().order_by("full_name")
     serializer_class = VisitorSerializer
@@ -936,55 +945,144 @@ class VisitorViewSet(viewsets.ModelViewSet):
     search_fields = ["full_name", "doc_number"]
     ordering_fields = ["full_name", "doc_number"]
 
-    # listar/ver: cualquier autenticado; crear/editar/borrar: STAFF/ADMIN
     def get_permissions(self):
         if self.action in ["list", "retrieve"]:
             return [IsAuthenticated()]
         return [IsAuthenticated(), IsStaff()]
 
-# --- VISITS ---
+
+# ========== VISITAS ==========
 class VisitViewSet(viewsets.ModelViewSet):
     queryset = Visit.objects.select_related("visitor", "unit", "host_resident").all()
-    serializer_class = VisitSerializer
     filter_backends = [DjangoFilterBackend, SearchFilter, OrderingFilter]
-    filterset_fields = ["status", "unit", "host_resident"]
+    filterset_fields = ["status", "unit", "host_resident", "approval_status"]
     search_fields = ["visitor__full_name", "visitor__doc_number", "vehicle_plate", "purpose"]
     ordering_fields = ["created_at", "entry_at", "exit_at"]
 
+    # ---- serializers según acción ----
+    def get_serializer_class(self):
+        if self.action in ("create", "update", "partial_update"):
+            return VisitWriteSerializer
+        return VisitSerializer
+
+    # ---- permisos por acción ----
     def get_permissions(self):
-        # crear/editar/cerrar estados → STAFF/ADMIN
-        staff_actions = {"create", "update", "partial_update", "destroy", "enter", "exit", "cancel", "deny"}
+        # acciones de portería (STAFF/ADMIN)
+        staff_actions = {"create", "update", "partial_update", "destroy", "enter", "exit", "cancel"}
         if self.action in staff_actions:
             return [IsAuthenticated(), IsStaff()]
+        # aprobación del residente (el anfitrión decide)
+        if self.action in {"approve", "deny_approval", "approve_by_token"}:
+            # approve_by_token valida en el método; aquí sólo autenticación
+            return [IsAuthenticated()]
         # listar/ver → autenticado
         return [IsAuthenticated()]
 
+    # ---- visibilidad según usuario ----
     def get_queryset(self):
         qs = super().get_queryset()
         u = self.request.user
-        # Admin / base STAFF ven todo
-        code = user_role_code(u)
+
+        # filtro rápido "mine=1": como residente, mis visitas a mis unidades
+        if self.request.query_params.get("mine") == "1":
+            return qs.filter(host_resident=u)
+
+        # STAFF/ADMIN ven todo
         base = getattr(getattr(getattr(u, "profile", None), "role", None), "base", None)
-        if getattr(u, "is_superuser", False) or code == "ADMIN" or base == "STAFF":
+        if getattr(u, "is_superuser", False) or base in {"STAFF", "ADMIN"}:
             return qs
-        # Residente: solo sus visitas
+
+        # Residente: solo sus visitas o visitas a sus unidades
         mis_unidades = Unidad.objects.filter(Q(propietario=u) | Q(residente=u)).values_list("id", flat=True)
         return qs.filter(Q(host_resident=u) | Q(unit_id__in=mis_unidades)).distinct()
 
+    # ---- create/update delegan en serializer (que setea created_by/updated_by) ----
     def perform_create(self, serializer):
-        # No pases created_by aquí: el serializer ya lo asigna desde context
         serializer.save()
 
     def perform_update(self, serializer):
-        # Igual con updated_by: el serializer lo asigna
         serializer.save()
+
+    # ======== ACCIONES DE APROBACIÓN (RESIDENTE) ========
+
+    @action(detail=True, methods=["post"])
+    def approve(self, request, pk=None):
+        """
+        Residente anfitrión aprueba. Body opcional: {"hours_valid": 24}
+        """
+        visit = self.get_object()
+        # permiso: debe ser el anfitrión
+        if visit.host_resident_id != request.user.id:
+            return Response({"detail": "No eres el anfitrión de esta visita."}, status=403)
+
+        ser = VisitApproveSerializer(data=request.data or {})
+        ser.is_valid(raise_exception=True)
+        hours = ser.validated_data.get("hours_valid", 24)
+        visit.approve(request.user, hours_valid=hours)
+        visit.updated_by = request.user
+        visit.save()
+        return Response(VisitSerializer(visit, context={"request": request}).data)
+
+    @action(detail=True, methods=["post"], url_path="deny-approval")
+    def deny_approval(self, request, pk=None):
+        """
+        Residente anfitrión deniega aprobación (NO cambia 'status'; sólo aprobación).
+        """
+        visit = self.get_object()
+        if visit.host_resident_id != request.user.id:
+            return Response({"detail": "No eres el anfitrión de esta visita."}, status=403)
+
+        ser = VisitDenySerializer(data=request.data or {})
+        ser.is_valid(raise_exception=True)
+        visit.deny(request.user)
+        visit.updated_by = request.user
+        visit.save()
+        return Response(VisitSerializer(visit, context={"request": request}).data)
+
+    @action(detail=False, methods=["post"], url_path="approve-by-token")
+    def approve_by_token(self, request):
+        """
+        Alternativa si envías link con token: requiere que el usuario autenticado
+        sea el anfitrión de la visita encontrada por token.
+        Body: {"token": "<uuid>", "hours_valid": 24}
+        """
+        token = (request.data or {}).get("token")
+        if not token:
+            return Response({"detail": "Falta token."}, status=400)
+        try:
+            visit = Visit.objects.get(approval_token=token)
+        except Visit.DoesNotExist:
+            return Response({"detail": "Token inválido."}, status=404)
+        if visit.host_resident_id != request.user.id:
+            return Response({"detail": "No eres el anfitrión."}, status=403)
+
+        hours = int((request.data or {}).get("hours_valid") or 24)
+        visit.approve(request.user, hours_valid=hours)
+        visit.updated_by = request.user
+        visit.save()
+        return Response(VisitSerializer(visit, context={"request": request}).data)
+
+    # ======== ACCIONES DE PORTERÍA (STAFF/ADMIN) ========
 
     @action(detail=True, methods=["post"])
     def enter(self, request, pk=None):
+        """
+        Check-in en portería. Requiere aprobación válida, a menos que 'force=true'.
+        """
         visit = self.get_object()
         if visit.status not in ["REGISTRADO", "DENEGADO"]:
             return Response({"detail": "La visita no está en estado apto para ingreso."}, status=400)
-        visit.mark_entry(request.user)
+
+        ser = VisitCheckInSerializer(data=request.data or {})
+        ser.is_valid(raise_exception=True)
+        force = ser.validated_data.get("force", False)
+
+        try:
+            visit.mark_entry(request.user, force=force)
+        except Exception as e:
+            return Response({"detail": str(e)}, status=400)
+
+        visit.updated_by = request.user
         visit.save()
         return Response(VisitSerializer(visit, context={"request": request}).data)
 
@@ -994,6 +1092,7 @@ class VisitViewSet(viewsets.ModelViewSet):
         if visit.status != "INGRESADO":
             return Response({"detail": "La visita no está ingresada."}, status=400)
         visit.mark_exit(request.user)
+        visit.updated_by = request.user
         visit.save()
         return Response(VisitSerializer(visit, context={"request": request}).data)
 
@@ -1007,6 +1106,7 @@ class VisitViewSet(viewsets.ModelViewSet):
         visit.save()
         return Response(VisitSerializer(visit, context={"request": request}).data)
 
+    # (Mantengo tu 'deny' original por si lo usas en portería para rechazar el movimiento)
     @action(detail=True, methods=["post"])
     def deny(self, request, pk=None):
         visit = self.get_object()

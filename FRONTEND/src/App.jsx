@@ -1,5 +1,7 @@
 // src/App.jsx
 import { BrowserRouter, Routes, Route, Navigate } from "react-router-dom";
+import { useEffect, useState } from "react";
+
 import Signin from "./pages/Signin";
 import Dashboard from "./pages/Dashboard";
 import Me from "./pages/Me";
@@ -30,9 +32,48 @@ import AreasDisponibilidad from "./pages/AreasDisponibilidad";
 import AreaReservaNueva from "./pages/AreaReservaNueva";
 import VehiculosPage from "./pages/VehiculosPage";
 import VisitsPage from "./pages/VisitsPage";
+import ResidentVisitsPage from "./pages/ResidentVisitsPage";
 import AccessControl from "./pages/AccessControl";
 import FaceEnroll from "./pages/FaceEnroll";
 import FaceIdentify from "./pages/FaceIdentify";
+
+/* ===========================
+   Helper: lee el rol del usuario
+   =========================== */
+function readRoleFromLocalStorage() {
+  const raw = localStorage.getItem("me") || localStorage.getItem("user");
+  if (!raw) return null;
+  try {
+    const u = JSON.parse(raw);
+    const role =
+      u?.role ||
+      u?.role_code ||
+      u?.profile?.role?.code ||
+      u?.profile?.role_code ||
+      "";
+    return String(role).toUpperCase() || null;
+  } catch {
+    return null;
+  }
+}
+
+/* ===========================
+   Switch de vistas para /visits
+   =========================== */
+function VisitsSwitch() {
+  const [role, setRole] = useState(readRoleFromLocalStorage());
+
+  // Por si el "me" en localStorage cambia durante la sesión
+  useEffect(() => {
+    const onStorage = () => setRole(readRoleFromLocalStorage());
+    window.addEventListener("storage", onStorage);
+    return () => window.removeEventListener("storage", onStorage);
+  }, []);
+
+  const isStaff = role === "ADMIN" || role === "STAFF";
+  return isStaff ? <VisitsPage /> : <ResidentVisitsPage />;
+}
+
 export default function App() {
   return (
     <BrowserRouter>
@@ -112,10 +153,12 @@ export default function App() {
               </RequireRole>
             }
           />
+
+          {/* Seguridad */}
           <Route
             path="acceso-vehicular"
             element={
-              <RequireRole allow={["ADMIN"," STAFF"]}>
+              <RequireRole allow={["ADMIN", "STAFF"]}>
                 <AccessControl />
               </RequireRole>
             }
@@ -123,7 +166,7 @@ export default function App() {
           <Route
             path="face/enroll"
             element={
-              <RequireRole allow={["ADMIN"," STAFF"]}>
+              <RequireRole allow={["ADMIN", "STAFF"]}>
                 <FaceEnroll />
               </RequireRole>
             }
@@ -131,7 +174,7 @@ export default function App() {
           <Route
             path="face/identify"
             element={
-              <RequireRole allow={["ADMIN"," STAFF"]}>
+              <RequireRole allow={["ADMIN", "STAFF"]}>
                 <FaceIdentify />
               </RequireRole>
             }
@@ -142,10 +185,13 @@ export default function App() {
             path="visits"
             element={
               <RequireRole allow={["ADMIN", "STAFF", "RESIDENT"]}>
-                <VisitsPage />
+                <VisitsSwitch />
               </RequireRole>
             }
           />
+          
+              <Route path="mis-visitas" element={<RequireRole allow={["RESIDENTE"]}><ResidentVisitsPage/></RequireRole>} />
+          
 
           {/* Avisos */}
           <Route
@@ -220,7 +266,7 @@ export default function App() {
             }
           />
 
-          {/* fallback dentro de autenticado */}
+          {/* fallback dentro autenticado */}
           <Route path="*" element={<Navigate to="dashboard" replace />} />
         </Route>
 
