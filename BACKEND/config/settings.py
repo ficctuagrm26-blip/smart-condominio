@@ -164,13 +164,14 @@ SITE_URL = os.environ.get("SITE_URL", "http://localhost:8000")
 
 
 #ia
-ENV = os.environ.get("ENVIRONMENT", "prod")  # "dev" o "prod"
 
-if ENV != "prod":
+
+if os.environ.get("ENVIRONMENT", "prod").lower() != "prod":
     try:
-        from dotenv import load_dotenv
-        load_dotenv()  # carga .env en tu máquina local
+        from dotenv import load_dotenv  # <- import dentro del bloque
+        load_dotenv()
     except Exception:
+        # opcional: print("dotenv no disponible, continuando…")
         pass
 PLATE_RECOG_TOKEN = os.getenv("PLATE_RECOG_TOKEN", "")
 PLATE_REGIONS = os.getenv("PLATE_REGIONS", "bo")
