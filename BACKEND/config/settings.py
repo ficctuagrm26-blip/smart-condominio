@@ -164,7 +164,14 @@ SITE_URL = os.environ.get("SITE_URL", "http://localhost:8000")
 
 
 #ia
-load_dotenv()
+ENV = os.environ.get("ENVIRONMENT", "prod")  # "dev" o "prod"
+
+if ENV != "prod":
+    try:
+        from dotenv import load_dotenv
+        load_dotenv()  # carga .env en tu máquina local
+    except Exception:
+        pass
 PLATE_RECOG_TOKEN = os.getenv("PLATE_RECOG_TOKEN", "")
 PLATE_REGIONS = os.getenv("PLATE_REGIONS", "bo")
 OCR_CONFIDENCE_THRESHOLD = float(os.getenv("OCR_CONFIDENCE_THRESHOLD", "0.60"))
