@@ -166,13 +166,18 @@ SITE_URL = os.environ.get("SITE_URL", "http://localhost:8000")
 #ia
 
 
-if os.environ.get("ENVIRONMENT", "prod").lower() != "prod":
+ENVIRONMENT = os.environ.get("ENVIRONMENT", "prod").lower()
+
+# Solo en dev/local intentamos cargar .env; en prod NO es necesario
+if ENVIRONMENT != "prod":
     try:
-        from dotenv import load_dotenv  # <- import dentro del bloque
+        from dotenv import load_dotenv  # import dentro del try
         load_dotenv()
     except Exception:
-        # opcional: print("dotenv no disponible, continuando…")
+        # No rompas si no está instalado en dev
         pass
+
+BASE_DIR = Path(__file__).resolve().parent.parent
 PLATE_RECOG_TOKEN = os.getenv("PLATE_RECOG_TOKEN", "")
 PLATE_REGIONS = os.getenv("PLATE_REGIONS", "bo")
 OCR_CONFIDENCE_THRESHOLD = float(os.getenv("OCR_CONFIDENCE_THRESHOLD", "0.60"))
