@@ -5,8 +5,22 @@ Django settings for config project.
 from pathlib import Path
 import os
 import dj_database_url
-from dotenv import load_dotenv
+
+# === Modo de ejecución ===
+# En Render define ENVIRONMENT=prod (así no se intenta cargar .env)
+ENVIRONMENT = os.environ.get("ENVIRONMENT", "prod").lower()
+
+# Solo en dev/local intentamos cargar .env; en prod NO es necesario ni deseable
+if ENVIRONMENT != "prod":
+    try:
+        from dotenv import load_dotenv  # import dentro del try/bloque
+        load_dotenv()
+    except Exception:
+        # No rompas si no está instalado en dev
+        pass
+
 BASE_DIR = Path(__file__).resolve().parent.parent
+
 
 # --- Seguridad / Debug ---
 SECRET_KEY = os.environ.get("SECRET_KEY", "dev-secret")
@@ -166,18 +180,7 @@ SITE_URL = os.environ.get("SITE_URL", "http://localhost:8000")
 #ia
 
 
-ENVIRONMENT = os.environ.get("ENVIRONMENT", "prod").lower()
 
-# Solo en dev/local intentamos cargar .env; en prod NO es necesario
-if ENVIRONMENT != "prod":
-    try:
-        from dotenv import load_dotenv  # import dentro del try
-        load_dotenv()
-    except Exception:
-        # No rompas si no está instalado en dev
-        pass
-
-BASE_DIR = Path(__file__).resolve().parent.parent
 PLATE_RECOG_TOKEN = os.getenv("PLATE_RECOG_TOKEN", "")
 PLATE_REGIONS = os.getenv("PLATE_REGIONS", "bo")
 OCR_CONFIDENCE_THRESHOLD = float(os.getenv("OCR_CONFIDENCE_THRESHOLD", "0.60"))
