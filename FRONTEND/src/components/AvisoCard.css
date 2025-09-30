@@ -1,0 +1,94 @@
+/* ===== AvisoCard estilos ===== */
+.av-card{
+  border: 1px solid var(--aa-border, #1f2a3a);
+  border-radius: 16px;
+  background: var(--aa-panel2, #0c1422);
+  padding: 14px 16px;
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  transition: border-color .2s ease, transform .1s ease;
+}
+.av-card:hover{
+  border-color: rgba(79,140,255,.35);
+  transform: translateY(-1px);
+}
+
+/* Compacta (modo lista en Admin) */
+.av-card--compact .av-card__body{
+  display:none;
+}
+
+.av-card__head{
+  display:flex;
+  align-items:center;
+  gap:8px;
+  flex-wrap:wrap;
+}
+.av-card__title{
+  margin:0;
+  font-size: 17px;
+  font-weight: 600;
+  line-height: 1.25;
+  color: var(--aa-text, #e8edf6);
+}
+
+.av-card__body{
+  margin: 6px 0;
+  color: #e9eef6;
+  font-size: 14.5px;
+  line-height: 1.45;
+  white-space: pre-wrap;
+}
+
+.av-card__foot{
+  margin-top: 4px;
+  display:flex;
+  flex-direction:column;
+  gap:6px;
+}
+
+/* Meta info (fechas, autor, id) */
+.av-meta{
+  font-size: 12.5px;
+  color: var(--aa-muted, #9fb0bf);
+}
+.av-meta span+span::before{
+  content:"•";
+  margin: 0 6px;
+  opacity:.6;
+}
+
+/* Acciones */
+.av-actions{
+  display:flex;
+  flex-wrap:wrap;
+  gap:6px;
+  margin-top:4px;
+}
+.av-actions .btn{
+  padding: 7px 12px;
+  font-size: 13px;
+  border-radius: 10px;
+  font-weight: 600;
+}
+.av-actions .btn.btn--ghost{
+  border-color: rgba(255,255,255,.1);
+}
+.av-actions .btn.btn--danger{
+  background: var(--aa-danger, #ef4444);
+}
+
+/* Badges (status) */
+.av-badge{
+  font-size: 11px;
+  padding: 3px 8px;
+  border-radius: 999px;
+  font-weight: 700;
+  border: 1px solid var(--aa-border, #1f2a3a);
+  background: #08101d;
+  letter-spacing: .2px;
+}
+.av-badge--borrador{ color:#cbd5e1 }
+.av-badge--publicado{ color: #22c55e; border-color: rgba(34,197,94,.35) }
+.av-badge--archivado{ color:#f59e0b; border-color: rgba(245,158,11,.35) }

@@ -173,3 +173,9 @@ VISITOR_TIME_TOLERANCE_MIN = int(os.getenv("VISITOR_TIME_TOLERANCE_MIN", "10"))
 OPEN_ON_ALLOW = os.getenv("OPEN_ON_ALLOW", "false").lower() == "true"
 
 FACE_THRESHOLD = float(os.environ.get("FACE_THRESHOLD", "0.40"))
+
+CAMERA_DIRECTIONS = {
+    "gate-entrada": "ENTRADA",
+    "gate-salida": "SALIDA",
+    # agrega las que tengas
+}

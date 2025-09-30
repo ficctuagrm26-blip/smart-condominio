@@ -1,61 +1,48 @@
 // src/api/avisos.js
 import api from "./auth";
 
-// Base sin slash inicial (Axios ya pone BASE en api)
-const BASE = "avisos/";
-const UNIDADES_BASE = "unidades/";
-const ROLES_BASE = "roles/";
+// Bases sin slash inicial (el baseURL ya termina en "/")
+const PUBLIC_BASE = "avisos/";
+const ADMIN_BASE  = "admin/avisos/";
 
-// Desempaqueta: si viene paginado {results: []} devuelve el array, si no, el objeto.
-function unwrap(data) {
-  return Array.isArray(data) ? data : data.results || data;
+// ===== Público (residentes) =====
+export async function listAvisosPublic(params = {}) {
+  const { data } = await api.get(PUBLIC_BASE, { params });
+  return Array.isArray(data) ? data : (data.results || data);
 }
 
-// ------- Avisos -------
-export async function listAvisos(params = {}, pageUrl) {
-  const { data } = pageUrl
-    ? await api.get(pageUrl) // navegar con next/prev absolutos (si luego agregas paginación en UI)
-    : await api.get(BASE, { params }); // /avisos/?search=...&ordering=...
-  return unwrap(data);
-}
-
-export async function getAviso(id) {
-  const { data } = await api.get(`${BASE}${id}/`);
+export async function getAvisoPublic(id) {
+  const { data } = await api.get(`${PUBLIC_BASE}${id}/`);
   return data;
 }
 
+// ===== Admin (CRUD + acciones) =====
+export async function listAvisos(params = {}) {
+  const { data } = await api.get(ADMIN_BASE, { params });
+  return Array.isArray(data) ? data : (data.results || data);
+}
+
 export async function createAviso(payload) {
-  const { data } = await api.post(BASE, payload);
+  // payload puede traer publish_at/expires_at en ISO o null
+  const { data } = await api.post(ADMIN_BASE, payload);
   return data;
 }
 
 export async function updateAviso(id, payload) {
-  const { data } = await api.patch(`${BASE}${id}/`, payload);
+  const { data } = await api.patch(`${ADMIN_BASE}${id}/`, payload);
   return data;
 }
 
 export async function deleteAviso(id) {
-  await api.delete(`${BASE}${id}/`);
-  return true;
+  await api.delete(`${ADMIN_BASE}${id}/`);
 }
 
 export async function publicarAviso(id) {
-  const { data } = await api.post(`${BASE}${id}/publicar/`);
+  const { data } = await api.post(`${ADMIN_BASE}${id}/publicar/`);
   return data;
 }
 
 export async function archivarAviso(id) {
-  const { data } = await api.post(`${BASE}${id}/archivar/`);
+  const { data } = await api.post(`${ADMIN_BASE}${id}/archivar/`);
   return data;
-}
-
-// ------- Combos -------
-export async function listUnidades(params = {}) {
-  const { data } = await api.get(UNIDADES_BASE, { params });
-  return unwrap(data);
-}
-
-export async function listRoles(params = {}) {
-  const { data } = await api.get(ROLES_BASE, { params });
-  return unwrap(data);
 }

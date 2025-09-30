@@ -1,0 +1,17 @@
+.chip {
+  display: inline-block;
+  padding: 2px 8px;
+  border-radius: 12px;
+  font-size: 0.8rem;
+  font-weight: 600;
+}
+
+.chip--entrada {
+  background-color: #2ecc71; /* verde */
+  color: #fff;
+}
+
+.chip--salida {
+  background-color: #e67e22; /* naranja */
+  color: #fff;
+}

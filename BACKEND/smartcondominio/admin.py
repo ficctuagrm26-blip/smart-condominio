@@ -36,10 +36,36 @@ class UnidadAdmin(admin.ModelAdmin):
 # --- Avisos ---
 @admin.register(Aviso)
 class AvisoAdmin(admin.ModelAdmin):
-    list_display = ("id", "titulo", "audiencia", "status", "publish_at", "creado_por", "is_active")
-    list_filter = ("audiencia", "status", "is_active")
-    search_fields = ("titulo", "cuerpo", "torre")
-    filter_horizontal = ("unidades", "roles")
+    list_display = (
+        "id",
+        "titulo",
+        "status",
+        "publish_at",
+        "expires_at",
+        "created_by",
+        "created_at",
+    )
+    list_filter = (
+        "status",
+        ("publish_at", admin.DateFieldListFilter),
+        ("expires_at", admin.DateFieldListFilter),
+        ("created_at", admin.DateFieldListFilter),
+    )
+    search_fields = ("titulo", "cuerpo", "created_by__username", "created_by__email")
+    ordering = ("-publish_at", "-created_at")
+    readonly_fields = ("created_at", "updated_at")
+
+    fieldsets = (
+        (None, {"fields": ("titulo", "cuerpo")}),
+        ("Estado y fechas", {"fields": ("status", "publish_at", "expires_at")}),
+        ("Metadatos", {"fields": ("created_by", "created_at", "updated_at"), "classes": ("collapse",)}),
+    )
+
+    def save_model(self, request, obj, form, change):
+        # auto-asigna created_by si viene vacío
+        if not obj.created_by_id:
+            obj.created_by = request.user
+        super().save_model(request, obj, form, change)
 
 # --- Tareas ---
 @admin.register(Tarea)

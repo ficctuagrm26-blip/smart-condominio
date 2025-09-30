@@ -37,13 +37,20 @@ async function safeJson(res) {
  *   visit_id?: number, host_id?: number
  * }>}
  */
+// src/api/access.js (o donde lo tengas)
 export async function snapshotCheck(file, opts = {}) {
   const fd = new FormData();
+
   if (opts.camera_id) fd.append("camera_id", opts.camera_id);
-  if (opts.gate_id !== undefined && opts.gate_id !== null) fd.append("gate_id", String(opts.gate_id));
+  if (opts.gate_id !== undefined && opts.gate_id !== null) {
+    fd.append("gate_id", String(opts.gate_id));
+  }
+  // ⬅️ NUEVO: ENTRADA | SALIDA (opcional)
+  if (opts.direction) fd.append("direction", String(opts.direction)); // "ENTRADA" | "SALIDA"
 
   // Normaliza a File para que tenga nombre
-  const snapFile = file instanceof File ? file : new File([file], "snapshot.jpg", { type: "image/jpeg" });
+  const snapFile =
+    file instanceof File ? file : new File([file], "snapshot.jpg", { type: "image/jpeg" });
   fd.append("image", snapFile);
 
   const r = await fetch(u("access/snapshot-check/"), {

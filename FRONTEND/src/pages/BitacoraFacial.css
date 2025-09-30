@@ -1,0 +1,125 @@
+/* src/pages/BitacoraFacial.css */
+.bf-card {
+  background: #04514d;
+  border-radius: 14px;
+  padding: 16px;
+  box-shadow: 0 1px 3px rgba(16,24,40,.06), 0 1px 2px rgba(16,24,40,.03);
+}
+
+.bf-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  margin-bottom: 12px;
+}
+
+.bf-actions {
+  display: flex;
+  gap: 8px;
+}
+
+.bf-btn {
+  appearance: none;
+  border: px solid #1a4bac;
+  background: #06213b;
+  border-radius: 10px;
+  padding: 8px 12px;
+  font-weight: 600;
+  cursor: pointer;
+}
+.bf-btn:hover { background: #f3f4f6; }
+.bf-btn--ghost {
+  background: transparent;
+}
+
+.bf-grid-7 {
+  display: grid;
+  grid-template-columns: repeat(7, minmax(0, 1fr));
+  gap: 8px;
+  margin-bottom: 10px;
+}
+@media (max-width: 1024px) {
+  .bf-grid-7 {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+}
+
+.bf-input {
+  width: 100%;
+  border: 1px solid #e5e7eb;
+  border-radius: 10px;
+  padding: 8px 10px;
+  background: #08402d;
+}
+
+.bf-alert {
+  padding: 10px 12px;
+  border-radius: 10px;
+  margin: 8px 0;
+}
+.bf-alert--error {
+  background: #fee2e2;
+  color: #991b1b;
+  border: 1px solid #fecaca;
+}
+
+.bf-empty {
+  padding: 22px;
+  text-align: center;
+  color: #f2f4f7;
+}
+
+.bf-table {
+  width: 100%;
+  border-collapse: collapse;
+  border-radius: 10px;
+  overflow: hidden;
+}
+.bf-table th, .bf-table td {
+  border-bottom: 1px solid #072646;
+  padding: 10px;
+  text-align: left;
+  vertical-align: top;
+  font-size: 14px;
+}
+.bf-table thead th {
+  background: #bcdbfa;
+  font-size: 12px;
+  letter-spacing: .02em;
+  color: #475569;
+}
+
+.bf-chip {
+  display: inline-block;
+  padding: 2px 8px;
+  border-radius: 999px;
+  font-size: 12px;
+  line-height: 1.5;
+  border: 1px solid transparent;
+}
+.bf-chip--allow_resident {
+  background: #ecfdf5; color: #065f46; border-color: #a7f3d0;
+}
+.bf-chip--allow_visit {
+  background: #ecfdf5; color: #065f46; border-color: #a7f3d0;
+}
+.bf-chip--deny_unknown {
+  background: #fef2f2; color: #7f1d1d; border-color: #fecaca;
+}
+.bf-chip--error_ocr {
+  background: #fffbeb; color: #78350f; border-color: #fde68a;
+}
+
+.bf-user { min-width: 180px; }
+.bf-sub { color: #6b7280; font-size: 12px; }
+
+.bf-code {
+  max-height: 300px;
+  overflow: auto;
+  background: #0b1021;
+  color: #e5e7eb;
+  padding: 10px;
+  border-radius: 8px;
+  font-size: 12px;
+}

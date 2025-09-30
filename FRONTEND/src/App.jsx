@@ -1,4 +1,3 @@
-// src/App.jsx
 import { BrowserRouter, Routes, Route, Navigate } from "react-router-dom";
 import { useEffect, useState } from "react";
 
@@ -16,7 +15,7 @@ import Permisos from "./pages/Permisos";
 import UnitsPage from "./pages/UnitsPage";
 import CuotasPage from "./pages/CuotasPage";
 import InfraccionesPage from "./pages/InfraccionesPage";
-import AdminAvisosPage from "./pages/AdminAvisosPage";
+
 import AdminTareasPage from "./pages/AdminTareasPage";
 import AsignarTareasPage from "./pages/AsignarTareasPage";
 import AdminAreasPage from "./pages/AdminAreasPage";
@@ -36,8 +35,17 @@ import ResidentVisitsPage from "./pages/ResidentVisitsPage";
 import AccessControl from "./pages/AccessControl";
 import FaceEnroll from "./pages/FaceEnroll";
 import FaceIdentify from "./pages/FaceIdentify";
-import EstadoCuenta from "./pages/EstadoCuenta";
+import AvisosFeedPage from "./pages/AvisosFeedPage";
 
+import AdminAvisosPage from "./pages/AdminAvisosPage";
+
+
+
+import ResidentPayments from "./pages/ResidentPayments";
+import AdminPayments from "./pages/AdminPayments";
+import BitacoraAccesos from "./pages/BitacoraAccesos";
+import BitacoraFacial from "./pages/BitacoraFacial";
+import AdminSeguridadReportes from "./pages/AdminSeguridadReportes";
 /* ===========================
    Helper: lee el rol del usuario
    =========================== */
@@ -52,7 +60,8 @@ function readRoleFromLocalStorage() {
       u?.profile?.role?.code ||
       u?.profile?.role_code ||
       "";
-    return String(role).toUpperCase() || null;
+    const up = String(role).toUpperCase();
+    return up === "RESIDENTE" ? "RESIDENT" : up;
   } catch {
     return null;
   }
@@ -180,31 +189,85 @@ export default function App() {
               </RequireRole>
             }
           />
+          <Route
+            path="access/face-log"
+            element={
+              <RequireRole allow={["ADMIN"]}>
+                <BitacoraFacial />
+              </RequireRole>
+            }
+          />
 
           {/* Visitas */}
           <Route
             path="visits"
             element={
-              <RequireRole allow={["ADMIN", "STAFF", "RESIDENT"]}>
+              <RequireRole allow={["ADMIN", "STAFF", "RESIDENTE"]}>
                 <VisitsSwitch />
               </RequireRole>
             }
           />
-          
-              <Route path="mis-visitas" element={<RequireRole allow={["RESIDENTE"]}><ResidentVisitsPage/></RequireRole>} />
-              <Route path="estado" element={<RequireRole allow={["RESIDENTE"]}><EstadoCuenta/></RequireRole>} />
-          
-
-          {/* Avisos */}
           <Route
-            path="admin/avisos"
+            path="mis-visitas"
             element={
-              <RequireRole allow={["ADMIN"]}>
-                <AdminAvisosPage />
+              <RequireRole allow={["RESIDENTE"]}>
+                <ResidentVisitsPage />
               </RequireRole>
             }
           />
-          <Route path="avisos" element={<MisAvisosPage />} />
+          <Route
+            path="access/events"
+            element={
+              <RequireRole allow={["ADMIN", "STAFF"]}>
+                <BitacoraAccesos />
+              </RequireRole>
+            }
+          />
+          <Route
+            path="admin/reportes-seguridad"
+            element={
+              <RequireRole allow={["ADMIN"]}>
+                <AdminSeguridadReportes />
+              </RequireRole>
+            }
+          />
+
+          
+          
+          
+          <Route path="/pagos" element={
+          <RequireAuth>
+            <ResidentPayments />
+          </RequireAuth>
+        } />
+        <Route path="/admin/pagos" element={
+          <RequireAuth>
+            <RequireRole roles={["ADMIN","STAFF"]}>
+              <AdminPayments />
+            </RequireRole>
+          </RequireAuth>
+        } />
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+          {/* Avisos */}
+          <Route path="admin/avisos" element={
+            <RequireRole allow={["ADMIN"]}>
+              <AdminAvisosPage />
+            </RequireRole>
+          }/>
+          <Route path="avisos" element={<AvisosFeedPage />} />
 
           {/* Tareas */}
           <Route
@@ -228,6 +291,7 @@ export default function App() {
           {/* Estado de cuenta */}
           <Route path="estado-cuenta" element={<EstadoCuentaPage />} />
 
+          
           {/* Áreas comunes (usuarios) */}
           <Route path="areas/disponibilidad" element={<AreasDisponibilidad />} />
           <Route path="areas/reservar" element={<AreaReservaNueva />} />
@@ -254,7 +318,7 @@ export default function App() {
           <Route
             path="vehiculos"
             element={
-              <RequireRole allow={["ADMIN", "STAFF", "RESIDENT"]}>
+              <RequireRole allow={["ADMIN", "STAFF", "RESIDENTE"]}>
                 <VehiculosPage />
               </RequireRole>
             }

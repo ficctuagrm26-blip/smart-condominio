@@ -1,3 +1,4 @@
+// src/pages/AccessControl.jsx
 import React, { useRef, useState } from "react";
 import { snapshotCheck, visitEnter } from "../api/access";
 
@@ -7,6 +8,10 @@ export default function AccessControl() {
   const [loading, setLoading] = useState(false);
   const [res, setRes] = useState(null);
   const [error, setError] = useState(null);
+
+  // NUEVO: seleccionables
+  const [cameraId, setCameraId] = useState("porteria_norte");
+  const [direction, setDirection] = useState("ENTRADA"); // ENTRADA | SALIDA
 
   const startCam = async () => {
     try {
@@ -45,7 +50,7 @@ export default function AccessControl() {
     try {
       const blob = await captureFrame();
       if (!blob) throw new Error("No se pudo capturar imagen");
-      const data = await snapshotCheck(blob, { camera_id: "porteria_norte" });
+      const data = await snapshotCheck(blob, { camera_id: cameraId, direction });
       setRes(data);
     } catch (e) {
       setError(e?.response?.data?.detail || e?.detail || e?.message || "Error enviando snapshot");
@@ -59,7 +64,7 @@ export default function AccessControl() {
     if (!f) return;
     setError(null); setLoading(true); setRes(null);
     try {
-      const data = await snapshotCheck(f, { camera_id: "porteria_norte" });
+      const data = await snapshotCheck(f, { camera_id: cameraId, direction });
       setRes(data);
     } catch (e) {
       setError(e?.response?.data?.detail || e?.detail || e?.message || "Error enviando snapshot");
@@ -89,9 +94,44 @@ export default function AccessControl() {
     ERROR_OCR: "#ca8a04",
   }[res?.decision || "ERROR_OCR"] || "#6b7280";
 
+  const dirChipBg = direction === "ENTRADA" ? "#2ecc71" : "#e67e22";
+
   return (
     <div style={{ maxWidth: 720, margin: "20px auto" }}>
       <h2>Acceso Vehicular (OCR)</h2>
+
+      {/* Controles de cámara y dirección */}
+      <div className="au-grid-3" style={{ marginBottom: 8, display: "grid", gap: 8, gridTemplateColumns: "1fr 1fr 1fr" }}>
+        <input
+          className="au-input"
+          placeholder="camera_id"
+          value={cameraId}
+          onChange={(e) => setCameraId(e.target.value)}
+        />
+        <select
+          className="au-input"
+          value={direction}
+          onChange={(e) => setDirection(e.target.value)}
+        >
+          <option value="ENTRADA">ENTRADA</option>
+          <option value="SALIDA">SALIDA</option>
+        </select>
+        <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
+          <span
+            style={{
+              display: "inline-block",
+              padding: "2px 8px",
+              borderRadius: 12,
+              color: "#fff",
+              background: dirChipBg,
+              fontWeight: 700,
+              fontSize: 12,
+            }}
+          >
+            {direction}
+          </span>
+        </div>
+      </div>
 
       {/* Cámara */}
       <div>
@@ -115,7 +155,11 @@ export default function AccessControl() {
       </div>
 
       {/* Mensajes */}
-      {error && <div style={{ background: "#fee2e2", color: "#991b1b", padding: 8, borderRadius: 8, marginTop: 8 }}>{String(error)}</div>}
+      {error && (
+        <div style={{ background: "#fee2e2", color: "#991b1b", padding: 8, borderRadius: 8, marginTop: 8 }}>
+          {String(error)}
+        </div>
+      )}
 
       {res && (
         <div style={{ background: color, color: "#fff", padding: 12, borderRadius: 12, marginTop: 10 }}>
@@ -125,7 +169,13 @@ export default function AccessControl() {
             {res.decision === "DENY_UNKNOWN" && "No autorizado"}
             {res.decision === "ERROR_OCR" && "Placa ilegible / baja confianza"}
           </div>
-          <div>Placa: <b>{res.plate || "—"}</b> · Score: <b>{res.score ?? "—"}</b> · Barrera: {res.opened ? "Abierta" : "Cerrada"}</div>
+          <div>
+            Dirección: <b>{res.direction || direction || "—"}</b> ·
+            Placa: <b>{res.plate || "—"}</b> ·
+            Score: <b>{res.score ?? "—"}</b> ·
+            Barrera: {res.opened ? "Abierta" : "Cerrada"}
+          </div>
+
           {res.decision === "ALLOW_RESIDENT" && (
             <div style={{ marginTop: 6 }}>
               Vehículo ID: {res.vehicle_id} · Propietario: {res.owner_id} · Unidad: {res.unit_id ?? "—"}

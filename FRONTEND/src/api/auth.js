@@ -155,8 +155,39 @@ export function logout() {
   localStorage.removeItem("me");
 }
 
+// ====== HELPERS HTTP (añadidos) ======
+export async function get(path, config = {}) {
+  const { data } = await api.get(path.replace(/^\/+/, ""), config);
+  return data;
+}
+
+export async function post(path, body = {}, config = {}) {
+  const { data } = await api.post(path.replace(/^\/+/, ""), body, config);
+  return data;
+}
+
+export async function patch(path, body = {}, config = {}) {
+  const { data } = await api.patch(path.replace(/^\/+/, ""), body, config);
+  return data;
+}
+
+export async function del(path, config = {}) {
+  const { data } = await api.delete(path.replace(/^\/+/, ""), config);
+  return data;
+}
+
+export async function postForm(path, formData, config = {}) {
+  const cfg = {
+    ...config,
+    headers: { ...(config.headers || {}), "Content-Type": "multipart/form-data" },
+  };
+  const { data } = await api.post(path.replace(/^\/+/, ""), formData, cfg);
+  return data;
+}
+
 export default api;
 
+// ====== ROLES / HELPERS ======
 export const ROLES = {
   ADMIN: "ADMIN",
   STAFF: "STAFF",
@@ -221,4 +252,8 @@ export async function updateUser(id, payload) {
 
 export async function deleteUser(id) {
   await api.delete(`${USERS_BASE}${id}/`);
+}
+
+export function getToken() {
+  return localStorage.getItem("authToken") || STATIC_TOKEN || "";
 }

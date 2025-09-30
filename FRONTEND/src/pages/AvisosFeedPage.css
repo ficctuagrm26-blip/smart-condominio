@@ -1,0 +1,75 @@
+/* ===== AvisosFeedPage – estilos feed ===== */
+.page.avisos-feed{
+  background:
+    radial-gradient(1000px 600px at 100% -20%, rgba(79,140,255,.06), transparent 60%),
+    radial-gradient(800px 400px at -10% 120%, rgba(34,197,94,.05), transparent 60%),
+    linear-gradient(180deg, #0a0f18 0%, #0b1320 100%);
+  min-height: 100%;
+  padding-bottom: 40px;
+}
+
+.page.avisos-feed .page__title{
+  margin: 12px 0 20px;
+  font-size: 22px;
+  font-weight: 700;
+  letter-spacing: .3px;
+}
+
+/* Toolbar */
+.page.avisos-feed .toolbar{
+  margin-bottom: 18px;
+}
+.page.avisos-feed .toolbar__form{
+  display:flex;
+  gap:8px;
+  flex-wrap: wrap;
+  align-items: center;
+}
+.page.avisos-feed .input{
+  flex:1;
+  min-width:220px;
+}
+
+/* Feed */
+.page.avisos-feed .feed{
+  display:grid;
+  gap:16px;
+}
+.page.avisos-feed .empty{
+  padding:20px;
+  text-align:center;
+  color: var(--aa-muted, #9fb0bf);
+  font-size: 14px;
+}
+
+/* Tarjetas en feed (heredan AvisoCard.css) */
+.page.avisos-feed .av-card{
+  border: 1px solid rgba(255,255,255,.06);
+  background: linear-gradient(180deg, #0f1726 0%, #0c1422 100%);
+  border-radius: 18px;
+  padding:18px 20px;
+  box-shadow: 0 4px 18px rgba(0,0,0,.25);
+}
+.page.avisos-feed .av-card__title{
+  font-size: 19px;
+  font-weight: 700;
+}
+.page.avisos-feed .av-card__body{
+  font-size: 15px;
+  line-height: 1.55;
+  margin-top: 6px;
+}
+.page.avisos-feed .av-card__foot{
+  margin-top: 10px;
+}
+.page.avisos-feed .av-meta{
+  font-size: 13px;
+}
+
+/* Badges con estilo más suave en feed */
+.page.avisos-feed .av-badge{
+  font-size: 12px;
+  padding: 4px 10px;
+  background: rgba(255,255,255,.05);
+  border-color: rgba(255,255,255,.1);
+}

@@ -1,6 +1,8 @@
 # serializers.py
 from decimal import Decimal
 import re
+from django.utils import timezone
+from django.db import transaction
 
 from django.contrib.auth import get_user_model, authenticate, password_validation
 from django.contrib.auth.models import Permission
@@ -16,7 +18,7 @@ from .models import (
     Tarea, TareaComentario,
     Vehiculo, SolicitudVehiculo,
     Aviso,
-    MockReceipt, OnlinePaymentIntent, AccessEvent
+    MockReceipt, OnlinePaymentIntent, AccessEvent, PagoComprobante, FaceAccessEvent
 )
 
 User = get_user_model()
@@ -577,46 +579,32 @@ class PagoEstadoCuentaSerializer(serializers.ModelSerializer):
 
 
 # ------------------------------ Avisos ------------------------------
-class AvisoSerializer(serializers.ModelSerializer):
-    unidades = serializers.PrimaryKeyRelatedField(queryset=Unidad.objects.all(), many=True, required=False)
-    roles = serializers.PrimaryKeyRelatedField(queryset=Rol.objects.all(), many=True, required=False)
-    adjuntos = serializers.ListField(child=serializers.URLField(max_length=1000), required=False, allow_empty=True)
-
+class AvisoBaseSerializer(serializers.ModelSerializer):
     class Meta:
         model = Aviso
         fields = [
             "id", "titulo", "cuerpo",
-            "audiencia", "torre", "unidades", "roles",
             "status", "publish_at", "expires_at",
-            "notify_inapp", "notify_email", "notify_push",
-            "adjuntos",
-            "creado_por", "created_at", "updated_at", "is_active",
+            "created_by", "created_at", "updated_at",
         ]
-        read_only_fields = ["creado_por", "created_at", "updated_at"]
+        read_only_fields = ["id", "created_by", "created_at", "updated_at"]
 
-    def validate(self, data):
-        aud = data.get("audiencia", getattr(self.instance, "audiencia", "ALL"))
-        if aud == "TORRE":
-            if not data.get("torre", getattr(self.instance, "torre", "")):
-                raise serializers.ValidationError({"torre": "Requerido cuando audiencia=TORRE."})
-        if aud == "UNIDAD":
-            unidades = data.get("unidades") or []
-            if isinstance(unidades, list) and len(unidades) == 0:
-                raise serializers.ValidationError({"unidades": "Debe seleccionar al menos una unidad."})
-        if aud == "ROL":
-            roles = data.get("roles") or []
-            if isinstance(roles, list) and len(roles) == 0:
-                raise serializers.ValidationError({"roles": "Debe seleccionar al menos un rol."})
+class AvisoCreateUpdateSerializer(AvisoBaseSerializer):
+    def validate(self, attrs):
+        publish_at = attrs.get("publish_at", getattr(self.instance, "publish_at", None))
+        expires_at = attrs.get("expires_at", getattr(self.instance, "expires_at", None))
+        if publish_at and expires_at and expires_at <= publish_at:
+            raise serializers.ValidationError("La fecha de expiración debe ser posterior a la de publicación.")
+        return attrs
 
-        status_ = data.get("status", getattr(self.instance, "status", "BORRADOR"))
-        publish_at = data.get("publish_at", getattr(self.instance, "publish_at", None))
-        if status_ == "PROGRAMADO" and not publish_at:
-            raise serializers.ValidationError({"publish_at": "Requerido cuando status=PROGRAMADO."})
-        return data
+    def create(self, validated_data):
+        # user viene del contexto (views set_context)
+        validated_data["created_by"] = self.context.get("request").user
+        return super().create(validated_data)
 
-    def create(self, validated):
-        validated["creado_por"] = self.context["request"].user
-        return super().create(validated)
+class AvisoReadSerializer(AvisoBaseSerializer):
+    """Para listado/lectura (incluye todo por ahora)."""
+    pass
 
 
 # ------------------------------ Tareas ------------------------------
@@ -952,7 +940,7 @@ class OnlinePaymentIntentSerializer(serializers.ModelSerializer):
 class MockReceiptSerializer(serializers.ModelSerializer):
     class Meta:
         model = MockReceipt
-        fields = ["id", "intent", "receipt_url", "amount", "reference", "bank_name", "uploaded_by", "created_at"]
+        fields = ["id", "intent", "receipt_url", "receipt_file", "amount", "reference", "bank_name", "uploaded_by", "created_at"]
         read_only_fields = ["uploaded_by", "created_at"]
 
     def validate(self, attrs):
@@ -966,33 +954,176 @@ class MockReceiptSerializer(serializers.ModelSerializer):
         if amount is not None and Decimal(amount) <= 0:
             raise serializers.ValidationError({"amount": "Si se informa, debe ser > 0."})
 
-        if not attrs.get("receipt_url") and not attrs.get("reference"):
-            raise serializers.ValidationError({"receipt_url": "Debes informar receipt_url o reference."})
+        # permitir URL o archivo (al menos uno)
+        if not attrs.get("receipt_url") and not attrs.get("receipt_file") and not attrs.get("reference"):
+            raise serializers.ValidationError({"receipt_url": "Debes informar receipt_url o receipt_file (o reference)."})
         return attrs
 
 
 #ia
 class SnapshotInSerializer(serializers.Serializer):
-    gate_id = serializers.IntegerField(required=False)  # opcional si aún no tienes Gate
+    gate_id = serializers.IntegerField(required=False)
     camera_id = serializers.CharField(required=False, allow_blank=True)
+    direction = serializers.ChoiceField(choices=["ENTRADA", "SALIDA", "UNKWN"], required=False)  # ⬅️ nuevo
     image = serializers.ImageField(required=True)
     
 class AccessEventSerializer(serializers.ModelSerializer):
     class Meta:
         model = AccessEvent
         fields = [
-            "id",
-            "created_at",
-            "camera_id",
-            "plate_raw",
-            "plate_norm",
-            "score",
-            "decision",
-            "reason",
-            "opened",
-            "vehicle",
-            "visit",
-            "payload",
-            "triggered_by",
+            "id","created_at","camera_id","plate_raw","plate_norm","score",
+            "decision","reason","opened","vehicle","visit","payload","triggered_by",
+            "direction",           # ⬅️ añade esto
         ]
-        read_only_fields = ["id", "created_at"]
+        read_only_fields = ["id","created_at"]
+        
+class PagoComprobanteCreateSerializer(serializers.ModelSerializer):
+    class Meta:
+        model = PagoComprobante
+        fields = [
+            "id", "cuota", "monto_reportado", "medio", "referencia", "nota",
+            "receipt_url", "receipt_file",
+        ]
+
+    def validate(self, attrs):
+        user = self.context["request"].user
+        cuota = attrs["cuota"]
+        if not cuota.is_active:
+            raise serializers.ValidationError({"cuota": "La cuota está inactiva/anulada."})
+        # Debe ser su unidad (propietario o residente)
+        es_su_unidad = Unidad.objects.filter(
+            id=cuota.unidad_id
+        ).filter(Q(propietario=user) | Q(residente=user)).exists()
+        if not es_su_unidad:
+            raise serializers.ValidationError({"cuota": "No autorizado sobre esta cuota."})
+        if Decimal(cuota.saldo) <= 0:
+            raise serializers.ValidationError({"cuota": "La cuota no tiene saldo pendiente."})
+        if Decimal(attrs["monto_reportado"]) <= 0:
+            raise serializers.ValidationError({"monto_reportado": "Debe ser > 0."})
+        if not attrs.get("receipt_url") and not attrs.get("receipt_file") and not attrs.get("referencia"):
+            raise serializers.ValidationError({"receipt_url": "Debes adjuntar archivo o URL (o completar referencia)."})
+        return attrs
+
+    def create(self, validated):
+        user = self.context["request"].user
+        return PagoComprobante.objects.create(residente=user, **validated)
+
+
+class PagoComprobanteListSerializer(serializers.ModelSerializer):
+    cuota_periodo = serializers.SerializerMethodField()
+    cuota_concepto = serializers.SerializerMethodField()
+    unidad = serializers.SerializerMethodField()
+    residente_nombre = serializers.SerializerMethodField()
+
+    class Meta:
+        model = PagoComprobante
+        fields = [
+            "id", "estado", "created_at",
+            "cuota", "cuota_periodo", "cuota_concepto", "unidad",
+            "monto_reportado", "medio", "referencia", "nota",
+            "receipt_url", "receipt_file",
+            "revisado_por", "revisado_en", "razon_rechazo", "pago",
+        ]
+
+    def get_cuota_periodo(self, obj): return getattr(obj.cuota, "periodo", None)
+    def get_cuota_concepto(self, obj): return getattr(obj.cuota, "concepto", None)
+    def get_residente_nombre(self, obj):
+        u = obj.residente
+        return (f"{u.first_name} {u.last_name}".strip() or u.username) if u else None
+    def get_unidad(self, obj):
+        try:
+            return str(obj.cuota.unidad)
+        except Exception:
+            return None
+
+
+class PagoComprobanteReviewSerializer(serializers.Serializer):
+    accion = serializers.ChoiceField(choices=["aprobar", "rechazar"])
+    monto_aprobado = serializers.DecimalField(max_digits=10, decimal_places=2, required=False)
+    razon_rechazo = serializers.CharField(required=False, allow_blank=True)
+
+    def validate(self, attrs):
+        comp: PagoComprobante = self.context["comprobante"]
+        if comp.estado != "PENDIENTE":
+            raise serializers.ValidationError("El comprobante ya fue revisado.")
+        if attrs["accion"] == "aprobar":
+            monto = attrs.get("monto_aprobado", comp.monto_reportado)
+            if Decimal(monto) <= 0:
+                raise serializers.ValidationError({"monto_aprobado": "Debe ser > 0."})
+        return attrs
+
+    @transaction.atomic
+    def save(self):
+        request = self.context["request"]
+        comp: PagoComprobante = self.context["comprobante"]
+        accion = self.validated_data["accion"]
+
+        if accion == "rechazar":
+            comp.estado = "RECHAZADO"
+            comp.razon_rechazo = self.validated_data.get("razon_rechazo", "")
+            comp.revisado_por = request.user
+            comp.revisado_en = timezone.now()
+            comp.save(update_fields=["estado", "razon_rechazo", "revisado_por", "revisado_en"])
+            return comp
+
+        # aprobar
+        cuota = comp.cuota
+        monto = self.validated_data.get("monto_aprobado", comp.monto_reportado)
+        monto = Decimal(monto)
+
+        # Capar al saldo actual por seguridad
+        saldo = Decimal(cuota.saldo)
+        if saldo <= 0:
+            # ya sin saldo: marcar aprobado sin crear pago (o crea pago 0 si prefieres no)
+            comp.estado = "APROBADO"
+            comp.revisado_por = request.user
+            comp.revisado_en = timezone.now()
+            comp.save(update_fields=["estado", "revisado_por", "revisado_en"])
+            return comp
+
+        if monto > saldo:
+            monto = saldo
+
+        pago = Pago.objects.create(
+            cuota=cuota,
+            monto=monto,
+            medio=comp.medio or "TRANSFERENCIA",
+            referencia=(comp.referencia or f"COMPROBANTE#{comp.id}"),
+            creado_por=request.user,
+        )
+        pago.aplicar()  # actualiza pagado/estado de la cuota
+
+        comp.estado = "APROBADO"
+        comp.pago = pago
+        comp.revisado_por = request.user
+        comp.revisado_en = timezone.now()
+        comp.save(update_fields=["estado", "pago", "revisado_por", "revisado_en"])
+        return comp
+
+class FaceAccessEventSerializer(serializers.ModelSerializer):
+    matched_user_display = serializers.SerializerMethodField()
+    triggered_by_display = serializers.SerializerMethodField()
+
+    class Meta:
+        model = FaceAccessEvent
+        fields = [
+            "id", "created_at", "camera_id", "direction",
+            "decision", "score", "opened",
+            "matched_user", "matched_user_display",
+            "triggered_by", "triggered_by_display",
+            "snapshot", "reason", "payload",
+        ]
+
+    def get_matched_user_display(self, obj):
+        u = getattr(obj, "matched_user", None)
+        if not u:
+            return None
+        name = f"{getattr(u,'first_name','') or ''} {getattr(u,'last_name','') or ''}".strip()
+        return name or getattr(u, "username", f"ID {u.id}")
+
+    def get_triggered_by_display(self, obj):
+        u = getattr(obj, "triggered_by", None)
+        if not u:
+            return None
+        name = f"{getattr(u,'first_name','') or ''} {getattr(u,'last_name','') or ''}".strip()
+        return name or getattr(u, "username", f"ID {u.id}")

@@ -77,7 +77,7 @@ export async function reviewSolicitudVehiculo(
   { accion, observaciones = "", unidad = null } = {}
 ) {
   const qs = unidad ? `?unidad=${encodeURIComponent(unidad)}` : "";
-  const { data } = await api.post(`${SOLICITUDES_BASE}${id}/revisar/${qs}`, {
+  const { data } = await api.post(`${SOLICITUDES_BASE}${id}/review/${qs}`, {
     accion,
     observaciones: observaciones || "",
   });

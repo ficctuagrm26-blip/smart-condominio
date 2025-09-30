@@ -321,74 +321,57 @@ class Infraccion(models.Model):
 # Avisos / Comunicados
 # =========================
 
+# smartcondominio/models.py
+from django.db import models
+from django.conf import settings
+from django.utils import timezone
+
+User = settings.AUTH_USER_MODEL
+
 class Aviso(models.Model):
-    AUDIENCE_CHOICES = [
-        ("ALL", "Todos"),
-        ("TORRE", "Por torre"),
-        ("UNIDAD", "Por unidad"),
-        ("ROL", "Por rol"),
-    ]
-    STATUS_CHOICES = [
-        ("BORRADOR", "Borrador"),
-        ("PROGRAMADO", "Programado"),
-        ("PUBLICADO", "Publicado"),
-        ("ARCHIVADO", "Archivado"),
-    ]
+    class Status(models.TextChoices):
+        BORRADOR   = "BORRADOR", "Borrador"
+        PUBLICADO  = "PUBLICADO", "Publicado"
+        ARCHIVADO  = "ARCHIVADO", "Archivado"
 
     titulo = models.CharField(max_length=200)
     cuerpo = models.TextField()
 
-    # audiencia
-    audiencia = models.CharField(max_length=10, choices=AUDIENCE_CHOICES, default="ALL")
-    torre = models.CharField(max_length=100, blank=True)  # cuando audiencia=TORRE
-    unidades = models.ManyToManyField("smartcondominio.Unidad", blank=True)
-    roles = models.ManyToManyField("smartcondominio.Rol", blank=True)
-
-    # publicación
-    status = models.CharField(max_length=12, choices=STATUS_CHOICES, default="BORRADOR")
-    publish_at = models.DateTimeField(null=True, blank=True)
+    status = models.CharField(
+        max_length=12,
+        choices=Status.choices,
+        default=Status.BORRADOR,
+        db_index=True,
+    )
+    publish_at = models.DateTimeField(null=True, blank=True, db_index=True)
     expires_at = models.DateTimeField(null=True, blank=True)
 
-    # notificación (placeholders)
-    notify_inapp = models.BooleanField(default=True)
-    notify_email = models.BooleanField(default=False)
-    notify_push = models.BooleanField(default=False)
-
-    # adjuntos como URLs (Drive/S3/lo que uses)
-    adjuntos = models.JSONField(default=list, blank=True)
-
-    # auditoría
-    creado_por = models.ForeignKey(User, null=True, on_delete=models.SET_NULL, related_name="avisos_creados")
-    is_active = models.BooleanField(default=True)
-    created_at = models.DateTimeField(auto_now_add=True)
+    created_by = models.ForeignKey(
+        User, null=True, blank=True, on_delete=models.SET_NULL, related_name="avisos_creados"
+    )
+    created_at = models.DateTimeField(auto_now_add=True, db_index=True)
     updated_at = models.DateTimeField(auto_now=True)
 
     class Meta:
         ordering = ["-publish_at", "-created_at"]
-        indexes = [
-            models.Index(fields=["audiencia", "status"]),
-            models.Index(fields=["publish_at"]),
-        ]
 
     def __str__(self):
         return f"[{self.status}] {self.titulo}"
 
-    def es_visible(self, now=None):
+    # --- Helpers de visibilidad ---
+    def is_visible_for_now(self, now=None):
+        """
+        Visible si está PUBLICADO, publish_at ≤ now y (sin expires_at o expires_at ≥ now).
+        """
+        if self.status != self.Status.PUBLICADO:
+            return False
         now = now or timezone.now()
-        if not self.is_active:
-            return False
-        if self.status != "PUBLICADO":
-            return False
         if self.publish_at and self.publish_at > now:
             return False
         if self.expires_at and self.expires_at < now:
             return False
         return True
 
-    def publicar_ahora(self):
-        self.status = "PUBLICADO"
-        if not self.publish_at:
-            self.publish_at = timezone.now()
 
 
 # =========================
@@ -897,6 +880,7 @@ class OnlinePaymentIntent(models.Model):
 class MockReceipt(models.Model):
     intent = models.ForeignKey(OnlinePaymentIntent, on_delete=models.CASCADE, related_name="receipts")
     receipt_url = models.URLField(blank=True)
+    receipt_file = models.FileField(upload_to="receipts/", blank=True, null=True)  # ⬅️ agrega
     amount = models.DecimalField(max_digits=10, decimal_places=2, null=True, blank=True)
     reference = models.CharField(max_length=120, blank=True)
     bank_name = models.CharField(max_length=80, blank=True)
@@ -930,9 +914,87 @@ class AccessEvent(models.Model):
 
     vehicle      = models.ForeignKey("smartcondominio.Vehiculo", null=True, blank=True, on_delete=models.SET_NULL)
     visit        = models.ForeignKey("smartcondominio.Visit",    null=True, blank=True, on_delete=models.SET_NULL)
-
+    direction = models.CharField(
+        max_length=10,
+        choices=[("ENTRADA", "Entrada"), ("SALIDA", "Salida")],
+        blank=True,
+        db_index=True,
+    )
     payload      = models.JSONField(default=dict, blank=True)   # respuesta completa de Plate Recognizer (opcional)
     triggered_by = models.ForeignKey(settings.AUTH_USER_MODEL, null=True, blank=True, on_delete=models.SET_NULL)
 
     class Meta:
         ordering = ["-created_at"]
+
+
+# =========================
+# Comprobantes de pago (flujo simple R->Admin)
+# =========================
+class PagoComprobante(models.Model):
+    ESTADOS = [
+        ("PENDIENTE", "Pendiente"),
+        ("APROBADO", "Aprobado"),
+        ("RECHAZADO", "Rechazado"),
+    ]
+
+    cuota = models.ForeignKey(Cuota, on_delete=models.PROTECT, related_name="comprobantes")
+    residente = models.ForeignKey(User, on_delete=models.PROTECT, related_name="comprobantes_enviados")
+    monto_reportado = models.DecimalField(max_digits=10, decimal_places=2)
+    medio = models.CharField(max_length=20, choices=Pago.MEDIO_CHOICES, default="TRANSFERENCIA")
+    referencia = models.CharField(max_length=120, blank=True)
+    nota = models.TextField(blank=True)
+
+    receipt_url = models.URLField(blank=True)
+    receipt_file = models.FileField(upload_to="receipts/", null=True, blank=True)
+
+    estado = models.CharField(max_length=12, choices=ESTADOS, default="PENDIENTE", db_index=True)
+    revisado_por = models.ForeignKey(User, null=True, blank=True, on_delete=models.SET_NULL, related_name="comprobantes_revisados")
+    revisado_en = models.DateTimeField(null=True, blank=True)
+    razon_rechazo = models.TextField(blank=True)
+
+    # vínculo con el Pago generado al aprobar
+    pago = models.ForeignKey(Pago, null=True, blank=True, on_delete=models.SET_NULL, related_name="desde_comprobante")
+
+    created_at = models.DateTimeField(auto_now_add=True)
+
+    class Meta:
+        ordering = ["-created_at"]
+        indexes = [models.Index(fields=["estado"]), models.Index(fields=["created_at"])]
+
+    def __str__(self):
+        return f"Comprobante #{self.id} · Cuota {self.cuota_id} · {self.estado}"
+
+class FaceAccessEvent(models.Model):
+    DECISION_CHOICES = [
+        ("ALLOW_RESIDENT", "ALLOW_RESIDENT"),
+        ("ALLOW_VISIT", "ALLOW_VISIT"),
+        ("DENY_UNKNOWN", "DENY_UNKNOWN"),
+        ("ERROR_OCR", "ERROR_OCR"),
+    ]
+    DIRECTION_CHOICES = [
+        ("ENTRADA", "ENTRADA"),
+        ("SALIDA", "SALIDA"),
+        ("", "No especificado"),
+    ]
+
+    created_at = models.DateTimeField(default=timezone.now, db_index=True)
+    camera_id = models.CharField(max_length=100, blank=True, default="", db_index=True)
+    direction = models.CharField(max_length=10, choices=DIRECTION_CHOICES, blank=True, default="", db_index=True)
+
+    decision = models.CharField(max_length=20, choices=DECISION_CHOICES, db_index=True)
+    score = models.DecimalField(max_digits=6, decimal_places=4, null=True, blank=True)  # 0–1 o %
+    opened = models.BooleanField(default=False)
+
+    matched_user = models.ForeignKey(User, null=True, blank=True, on_delete=models.SET_NULL, related_name="face_events")
+    # quién disparó la acción (guardia) — como haces en otros logs
+    triggered_by = models.ForeignKey(User, null=True, blank=True, on_delete=models.SET_NULL, related_name="face_events_triggered")
+
+    snapshot = models.FileField(upload_to="face_snapshots/", blank=True, null=True)  # opcional
+    reason = models.TextField(blank=True, default="")
+    payload = models.JSONField(blank=True, default=dict)
+
+    class Meta:
+        ordering = ["-created_at"]
+
+    def __str__(self):
+        return f"[{self.created_at:%Y-%m-%d %H:%M}] {self.camera_id} {self.direction} {self.decision} user={getattr(self.matched_user,'id',None)}"

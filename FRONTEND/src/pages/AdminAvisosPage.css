@@ -1,0 +1,149 @@
+/* ===== AdminAvisosPage – estilos aislados ===== */
+:root{
+  --aa-bg: #0a0f18;
+  --aa-panel: #0f1726;
+  --aa-panel2:#0c1422;
+  --aa-text:#e8edf6;
+  --aa-muted:#9fb0bf;
+  --aa-brand:#4f8cff;
+  --aa-ok:#22c55e;
+  --aa-warn:#f59e0b;
+  --aa-danger:#ef4444;
+  --aa-border:#1f2a3a;
+  --aa-shadow: 0 8px 28px rgba(0,0,0,.35);
+  --aa-radius: 16px;
+  --aa-radius-sm: 12px;
+}
+
+/* Scope a la página para no chocar con otros: */
+.page.admin-avisos{
+  --gap: 12px;
+  background:
+    radial-gradient(1200px 600px at 100% -20%, rgba(79,140,255,.08), transparent 60%),
+    radial-gradient(900px 500px at -10% 120%, rgba(34,197,94,.06), transparent 60%),
+    linear-gradient(180deg, var(--aa-bg) 0%, #0b1320 100%);
+  min-height: 100%;
+  color: var(--aa-text);
+}
+
+.page.admin-avisos .page__title{
+  margin: 8px 0 16px;
+  letter-spacing: .2px;
+  font-weight: 700;
+}
+
+/* ---- Card base ---- */
+.page.admin-avisos .card{
+  background: linear-gradient(180deg, var(--aa-panel) 0%, var(--aa-panel2) 100%);
+  border: 1px solid var(--aa-border);
+  border-radius: var(--aa-radius);
+  box-shadow: var(--aa-shadow);
+  padding: 14px 16px;
+  transition: border-color .2s ease, transform .12s ease;
+}
+.page.admin-avisos .card:hover{
+  border-color: rgba(79,140,255,.25);
+}
+
+/* ---- Toolbar ---- */
+.page.admin-avisos .toolbar{ margin-bottom: var(--gap) }
+.page.admin-avisos .toolbar__form{
+  display: flex; gap: 8px; align-items: center; flex-wrap: wrap;
+}
+
+/* ---- Inputs ---- */
+.page.admin-avisos .input{
+  background: #0c1422;
+  border: 1px solid var(--aa-border);
+  color: var(--aa-text);
+  padding: 10px 12px;
+  border-radius: var(--aa-radius-sm);
+  outline: none; min-width: 220px;
+  transition: border-color .2s ease, box-shadow .2s ease, transform .08s ease;
+}
+.page.admin-avisos textarea.input{ resize: vertical; min-height: 120px }
+.page.admin-avisos .input:focus{
+  border-color: rgba(79,140,255,.45);
+  box-shadow: 0 0 0 3px rgba(79,140,255,.15);
+}
+
+/* ---- Labels ---- */
+.page.admin-avisos .label{
+  display:block; margin: 6px 0 6px; color: var(--aa-muted); font-size: 13px;
+}
+
+/* ---- Botones ---- */
+.page.admin-avisos .btn{
+  border:1px solid transparent; background: var(--aa-brand); color:white;
+  padding:10px 14px; border-radius: 12px; font-weight: 700;
+  cursor:pointer; transition: transform .08s ease, box-shadow .15s ease, opacity .2s ease;
+}
+.page.admin-avisos .btn:hover{ transform: translateY(-1px); box-shadow: 0 8px 18px rgba(79,140,255,.25) }
+.page.admin-avisos .btn:active{ transform: translateY(0) scale(.98) }
+.page.admin-avisos .btn:disabled{ opacity:.5; cursor:not-allowed }
+
+.page.admin-avisos .btn.btn--ghost{
+  background: transparent; color: var(--aa-text); border-color: var(--aa-border);
+}
+.page.admin-avisos .btn.btn--danger{ background: var(--aa-danger) }
+
+/* ---- Grids ---- */
+.page.admin-avisos .grid-2{
+  display:grid; grid-template-columns: 1fr; gap: var(--gap);
+}
+.page.admin-avisos .grid-3{
+  display:grid; grid-template-columns: 1fr; gap: 8px;
+}
+
+@media (min-width: 900px){
+  .page.admin-avisos .grid-2{ grid-template-columns: 1.1fr .9fr }
+  .page.admin-avisos .grid-3{ grid-template-columns: 1fr 1fr 1fr }
+}
+
+/* ---- Form ---- */
+.page.admin-avisos .form .card__title{
+  margin: 4px 0 10px; font-size: 18px;
+}
+.page.admin-avisos .form__actions{
+  display:flex; gap:8px; margin-top:10px; flex-wrap: wrap;
+}
+
+/* ---- Feed / estados ---- */
+.page.admin-avisos .feed{ display:grid; gap: var(--gap); }
+.page.admin-avisos .empty{ padding:16px; color: var(--aa-muted) }
+
+/* ---- Tweak para AvisoCard cuando aparece aquí (compact + actions) ---- */
+.page.admin-avisos .av-card{
+  border: 1px solid var(--aa-border);
+  background: #0c1422;
+  border-radius: 16px;
+}
+.page.admin-avisos .av-card__head .av-badge{
+  border-color: rgba(255,255,255,.06);
+}
+.page.admin-avisos .av-actions .btn{
+  padding: 8px 12px; border-radius: 10px; font-weight: 600;
+}
+
+/* ---- Pequeños detalles ---- */
+.page.admin-avisos .error{
+  margin: 6px 0 10px;
+  padding: 10px 12px;
+  border-radius: 12px;
+  background: linear-gradient(180deg, rgba(239,68,68,.08), transparent);
+  color: #fecaca;
+  border: 1px solid rgba(239,68,68,.35);
+}
+
+.page.admin-avisos .card .card__title{
+  margin: 2px 0 10px;
+}
+
+.page.admin-avisos .card:has(.toolbar__form){ /* mejora soporte moderno */
+  padding: 10px 12px;
+}
+
+/* Scroll suave para la página */
+.page.admin-avisos{
+  scroll-behavior: smooth;
+}
